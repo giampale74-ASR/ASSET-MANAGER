@@ -1,83 +1,220 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { supabase } from "./supabase.js";
+import { useState, useMemo, useRef, useCallback } from "react";
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const initialAssets = [
+  { id: 1, nominativo: "Marco Rossi", email: "m.rossi@azienda.it", reparto: "IT", serialePC: "PC-2024-001", modelloPC: "Dell Latitude 5540", dataAcquisto: "2024-01-15", dataConsegna: "2024-01-20", sim: "SIM-IT-001", numeroCellulare: "+39 333 1234567", accountMicrosoft: "marco.rossi@azienda.onmicrosoft.com", note: "Laptop principale ufficio", stato: "Attivo" },
+  { id: 2, nominativo: "Laura Bianchi", email: "l.bianchi@azienda.it", reparto: "HR", serialePC: "PC-2024-002", modelloPC: "Lenovo ThinkPad L14", dataAcquisto: "2024-02-10", dataConsegna: "2024-02-15", sim: "SIM-IT-002", numeroCellulare: "+39 347 9876543", accountMicrosoft: "laura.bianchi@azienda.onmicrosoft.com", note: "", stato: "Attivo" },
+  { id: 3, nominativo: "Giovanni Verdi", email: "g.verdi@azienda.it", reparto: "Sales", serialePC: "PC-2023-089", modelloPC: "HP EliteBook 840", dataAcquisto: "2023-06-01", dataConsegna: "2023-06-05", sim: "SIM-IT-003", numeroCellulare: "+39 320 5551234", accountMicrosoft: "giovanni.verdi@azienda.onmicrosoft.com", note: "In garanzia fino al 2026", stato: "Attivo" },
+];
+
 const CSV_COLUMNS = ["nominativo","email","reparto","serialePC","modelloPC","dataAcquisto","dataConsegna","sim","numeroCellulare","accountMicrosoft","note","stato"];
-const CSV_HEADERS = ["Nominativo","Email","Reparto","Seriale PC","Modello PC","Data Acquisto","Data Consegna","SIM","Numero Cellulare","Account Microsoft","Note","Stato"];
+const CSV_HEADERS = ["Nominativo","Email","Ruolo","Seriale PC","Modello PC","Data Acquisto","Data Consegna","SIM","Numero Cellulare","Account Microsoft","Note","Stato"];
 const emptyForm = { nominativo:"",email:"",reparto:"",serialePC:"",modelloPC:"",dataAcquisto:"",dataConsegna:"",sim:"",numeroCellulare:"",accountMicrosoft:"",note:"",stato:"Attivo" };
 const defaultReparti = ["Back Office","Front Office","IT Management","IT","HR","Sales","Finance","Operations","Marketing","Direzione"];
 const stati = ["Attivo","In manutenzione","Dismesso","Smarrito"];
 
+const ALL_COLUMNS = [
+  { key:"nominativo",    label:"Nominativo",     always:true  },
+  { key:"email",         label:"Email",           always:false },
+  { key:"reparto",       label:"Ruolo",         always:false },
+  { key:"serialePC",     label:"Seriale PC",      always:false },
+  { key:"modelloPC",     label:"Modello PC",      always:false },
+  { key:"dataAcquisto",  label:"Data Acquisto",   always:false },
+  { key:"dataConsegna",  label:"Data Consegna",   always:false },
+  { key:"numeroCellulare",label:"Cellulare",      always:false },
+  { key:"sim",           label:"SIM",             always:false },
+  { key:"accountMicrosoft",label:"Account M365",  always:false },
+  { key:"note",          label:"Note",            always:false },
+  { key:"stato",         label:"Stato",           always:false },
+  { key:"hardware",       label:"Hardware",        always:false },
+];
+
+// Palette temi
+const THEMES = {
+  black: {
+    bg:        "#0a0c10",
+    surface:   "#13161e",
+    surface2:  "#0a0c10",
+    border:    "#1e2330",
+    border2:   "#2a3040",
+    text:      "#edf0f7",
+    textSub:   "#8892a8",
+    textMuted: "#424d60",
+    hover:     "#181d28",
+    inputBg:   "#0a0c10",
+    selectBg:  "#13161e",
+    link:      "#6ea8fe",
+    tabOn:     "#1e2330",
+    accent:    "#4f6ef7",
+    accent2:   "#3d5bd4",
+    scrollTr:  "#13161e",
+    scrollTh:  "#2a3040",
+  },
+  dark: {
+    bg:        "#131929",
+    surface:   "#1b2236",
+    surface2:  "#131929",
+    border:    "#243050",
+    border2:   "#2e3d60",
+    text:      "#dde5f5",
+    textSub:   "#7f90b8",
+    textMuted: "#4a5878",
+    hover:     "#1e2a42",
+    inputBg:   "#131929",
+    selectBg:  "#1b2236",
+    link:      "#82aaff",
+    tabOn:     "#1e2a42",
+    accent:    "#5b7cfa",
+    accent2:   "#4568e8",
+    scrollTr:  "#1b2236",
+    scrollTh:  "#2e3d60",
+  },
+  light: {
+    bg:        "#f4f6fb",
+    surface:   "#ffffff",
+    surface2:  "#eef1f8",
+    border:    "#dce2f0",
+    border2:   "#c5cfe8",
+    text:      "#111827",
+    textSub:   "#374151",
+    textMuted: "#6b7a99",
+    hover:     "#e8edf8",
+    inputBg:   "#ffffff",
+    selectBg:  "#ffffff",
+    link:      "#2563eb",
+    tabOn:     "#dde5f8",
+    accent:    "#4f6ef7",
+    accent2:   "#3d5bd4",
+    scrollTr:  "#f4f6fb",
+    scrollTh:  "#c5cfe8",
+  },
+};
+
 const statoColor = (s) => ({"Attivo":"#22c55e","In manutenzione":"#f59e0b","Dismesso":"#ef4444","Smarrito":"#8b5cf6"}[s]||"#888");
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("it-IT") : "—";
-const fmtTs = (ts) => new Date(ts).toLocaleString("it-IT");
+const fmtTs  = (ts) => new Date(ts).toLocaleString("it-IT");
 
-// ─── EXPORT ──────────────────────────────────────────────────────────────────
 function toCSV(data) {
   const rows = [CSV_HEADERS.join(",")];
-  data.forEach(a => rows.push(CSV_COLUMNS.map(k => `"${(a[k]||"").replace(/"/g,'""')}"`).join(",")));
+  data.forEach(a => rows.push(CSV_COLUMNS.map(k=>`"${(a[k]||"").replace(/"/g,'""')}"`).join(",")));
   return rows.join("\n");
 }
 function downloadFile(content, name, mime) {
-  const blob = new Blob([content], { type: mime });
+  const blob = new Blob([content],{type:mime});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href=url; a.download=name; a.click();
   URL.revokeObjectURL(url);
 }
-function generateExcelXML(data) {
-  const esc = v => String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  let xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Asset"><Table>`;
-  xml += `<Row>${CSV_HEADERS.map(h=>`<Cell><Data ss:Type="String">${esc(h)}</Data></Cell>`).join("")}</Row>`;
-  data.forEach(a => { xml += `<Row>${CSV_COLUMNS.map(k=>`<Cell><Data ss:Type="String">${esc(a[k])}</Data></Cell>`).join("")}</Row>`; });
-  xml += `</Table></Worksheet></Workbook>`;
-  return xml;
+async function exportToXLSX(data, filename) {
+  // Usa SheetJS via CDN per generare un vero .xlsx
+  if (!window.XLSX) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  const XLSX = window.XLSX;
+  const rows = [CSV_HEADERS, ...data.map(a => CSV_COLUMNS.map(k => a[k] || ""))];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Larghezze colonne automatiche
+  ws["!cols"] = CSV_HEADERS.map((h, i) => {
+    const maxLen = Math.max(h.length, ...data.map(a => String(a[CSV_COLUMNS[i]] || "").length));
+    return { wch: Math.min(maxLen + 2, 40) };
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Asset");
+  XLSX.writeFile(wb, filename);
+}
+async function loadXLSX() {
+  if (window.XLSX) return window.XLSX;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => resolve(window.XLSX);
+    s.onerror = () => reject(new Error("Impossibile caricare SheetJS"));
+    document.head.appendChild(s);
+  });
 }
 
-// ─── IMPORT ──────────────────────────────────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return { records:[], errors:["File vuoto o senza dati"] };
-  const header = lines[0].split(",").map(h=>h.replace(/^"|"$/g,"").trim().toLowerCase());
+async function parseXLSX(file) {
+  const XLSX = await loadXLSX();
+  const buffer = await file.arrayBuffer();
+  const wb = XLSX.read(buffer, { type: "array", cellDates: true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+  if (rows.length < 2) return { records: [], errors: ["File vuoto o senza dati"] };
+
+  // Normalizza intestazioni flessibilmente
+  const normalize = s => String(s).trim().toLowerCase().replace(/\s+/g, " ");
+  const header = rows[0].map(normalize);
+
   const colMap = {};
-  CSV_COLUMNS.forEach((col,i) => {
-    [col.toLowerCase(), CSV_HEADERS[i].toLowerCase()].forEach(alias => {
-      const idx = header.indexOf(alias); if (idx!==-1) colMap[col]=idx;
+  CSV_COLUMNS.forEach((col, i) => {
+    [col.toLowerCase(), CSV_HEADERS[i].toLowerCase(), normalize(CSV_HEADERS[i])].forEach(alias => {
+      const idx = header.indexOf(alias);
+      if (idx !== -1 && colMap[col] === undefined) colMap[col] = idx;
     });
   });
-  const records=[]; const errors=[];
-  lines.slice(1).forEach((line,li) => {
-    if (!line.trim()) return;
-    const vals=[]; let cur=""; let inQ=false;
-    for (let c of line) { if(c==='"') inQ=!inQ; else if(c===','&&!inQ){vals.push(cur);cur="";}else cur+=c; }
-    vals.push(cur);
-    const rec = {...emptyForm};
-    CSV_COLUMNS.forEach(col => { if(colMap[col]!==undefined) rec[col]=(vals[colMap[col]]||"").replace(/^"|"$/g,"").trim(); });
-    if (!rec.nominativo){errors.push(`Riga ${li+2}: nominativo mancante`);return;}
-    if (!rec.serialePC){errors.push(`Riga ${li+2}: seriale PC mancante`);return;}
-    if (!stati.includes(rec.stato)) rec.stato="Attivo";
+
+  if (Object.keys(colMap).length === 0) {
+    return { records: [], errors: [
+      `Nessuna colonna riconosciuta. Intestazioni trovate: ${header.slice(0,6).join(", ")}`,
+      "Usa il template scaricabile per avere le intestazioni corrette."
+    ]};
+  }
+
+  const records = []; const errors = [];
+  rows.slice(1).forEach((row, li) => {
+    if (row.every(c => String(c).trim() === "")) return; // riga vuota
+    const rec = { ...emptyForm };
+    CSV_COLUMNS.forEach(col => {
+      if (colMap[col] !== undefined) {
+        const val = row[colMap[col]];
+        // Gestisci date Excel (oggetto Date → stringa YYYY-MM-DD)
+        if (val instanceof Date) {
+          rec[col] = val.toISOString().slice(0, 10);
+        } else {
+          rec[col] = String(val ?? "").trim();
+        }
+      }
+    });
+    if (!rec.nominativo) { errors.push(`Riga ${li + 2}: campo "Nominativo" mancante`); return; }
+    if (!rec.serialePC)  { errors.push(`Riga ${li + 2}: campo "Seriale PC" mancante`); return; }
+    if (!stati.includes(rec.stato)) rec.stato = "Attivo";
     records.push(rec);
   });
+
   return { records, errors };
 }
-
-// ─── HISTORY ─────────────────────────────────────────────────────────────────
-function diffAssets(before, after) {
+function diffAssets(before,after){
   return CSV_COLUMNS.filter(k=>(before[k]||"")!==(after[k]||"")).map(k=>({field:k,from:before[k]||"",to:after[k]||""}));
 }
+function mkEvent(action,asset,changes=null){
+  return {id:Date.now()+Math.random(),ts:Date.now(),action,assetId:asset?.id||null,assetSerial:asset?.serialePC||null,assetNome:asset?.nominativo||null,changes};
+}
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export default function AssetManager({ onLogout }) {
-  const [assets, setAssets] = useState([]);
-  const [history, setHistory] = useState([]);
+export default function AssetManager() {
+  const [theme, setTheme] = useState("dark");
+  const T = THEMES[theme];
+  const themeList = ["black","dark","light"];
+  const themeIcons = ["⬛","🌙","☀️"];
+  const themeLabels = ["Nero","Notte","Chiaro"];
+
+  const [assets, setAssets] = useState(initialAssets);
   const [reparti, setReparti] = useState(defaultReparti);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
   const [newReparto, setNewReparto] = useState("");
   const [showAddReparto, setShowAddReparto] = useState(false);
   const [showRepartiManager, setShowRepartiManager] = useState(false);
-
+  const [history, setHistory] = useState([
+    {id:1,ts:Date.now()-86400000*5,action:"CREATO",assetId:1,assetSerial:"PC-2024-001",assetNome:"Marco Rossi",changes:null},
+    {id:2,ts:Date.now()-86400000*3,action:"CREATO",assetId:2,assetSerial:"PC-2024-002",assetNome:"Laura Bianchi",changes:null},
+    {id:3,ts:Date.now()-86400000*2,action:"CREATO",assetId:3,assetSerial:"PC-2023-089",assetNome:"Giovanni Verdi",changes:null},
+  ]);
   const [view, setView] = useState("table");
+  const [prevView, setPrevView] = useState("table");
   const [editId, setEditId] = useState(null);
   const [detailId, setDetailId] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -92,59 +229,103 @@ export default function AssetManager({ onLogout }) {
   const [importData, setImportData] = useState(null);
   const [importMode, setImportMode] = useState("aggiungi");
   const fileRef = useRef();
+  const [checks, setChecks] = useState({});
+  const [hardware, setHardware] = useState([
+    { id:1, tipo:"PC", marca:"Dell", modello:"Latitude 5540", seriale:"HW-PC-001", stato:"In uso", assegnatoA:"Marco Rossi", note:"" },
+    { id:2, tipo:"Monitor", marca:"LG", modello:"27UK850", seriale:"HW-MON-001", stato:"In uso", assegnatoA:"Marco Rossi", note:"" },
+    { id:3, tipo:"Cuffie", marca:"Jabra", modello:"Evolve2 55", seriale:"HW-CUF-001", stato:"In uso", assegnatoA:"Laura Bianchi", note:"" },
+  ]);
+  const [hwForm, setHwForm] = useState({tipo:"",marca:"",modello:"",seriale:"",stato:"In uso",assegnatoA:"",note:""});
+  const [hwEditId, setHwEditId] = useState(null);
+  const [hwView, setHwView] = useState("table"); // table | form
+  const [hwSearch, setHwSearch] = useState("");
+  const [hwDeleteConfirm, setHwDeleteConfirm] = useState(null);
+  const [hwSortField, setHwSortField] = useState("tipo");
+  const [hwSortDir, setHwSortDir] = useState("asc");
 
-  const showToast = useCallback((msg, type="success") => {
-    setToast({msg,type}); setTimeout(()=>setToast(null),3500);
-  }, []);
+  const HW_TIPI = ["PC","Monitor","Telefono","SIM","Cuffie","Altro"];
+  const HW_STATI = ["In uso","Disponibile","In manutenzione","Dismesso"];
+  const emptyHwForm = {tipo:"",marca:"",modello:"",seriale:"",stato:"In uso",assegnatoA:"",note:""};
 
-  // ── LOAD DATA FROM SUPABASE ──
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [{ data: assetsData, error: e1 }, { data: historyData, error: e2 }, { data: repartiData, error: e3 }] =
-        await Promise.all([
-          supabase.from('assets').select('*').order('nominativo'),
-          supabase.from('history').select('*').order('ts', { ascending: false }).limit(200),
-          supabase.from('reparti').select('nome').order('nome'),
-        ]);
-      if (e1) throw e1;
-      if (assetsData) setAssets(assetsData);
-      if (historyData) setHistory(historyData);
-      if (repartiData && repartiData.length > 0) {
-        const nomi = repartiData.map(r => r.nome);
-        const merged = [...new Set([...defaultReparti, ...nomi])];
-        setReparti(merged);
+  const hwFiltered = (() => {
+    let d = [...hardware];
+    if(hwSearch){ const q=hwSearch.toLowerCase(); d=d.filter(h=>Object.values(h).some(v=>String(v).toLowerCase().includes(q))); }
+    d.sort((a,b)=>{ const va=String(a[hwSortField]||"").toLowerCase(), vb=String(b[hwSortField]||"").toLowerCase(); return hwSortDir==="asc"?va.localeCompare(vb):vb.localeCompare(va); });
+    return d;
+  })();
+
+  const hwSortBy = (f) => { if(hwSortField===f) setHwSortDir(d=>d==="asc"?"desc":"asc"); else{setHwSortField(f);setHwSortDir("asc");} };
+
+  const saveHwForm = () => {
+    if(!hwForm.tipo||!hwForm.seriale){ showToast("Tipo e Seriale obbligatori","error"); return; }
+
+    // Controlla unicità seriale (escludi se stiamo modificando lo stesso record)
+    const serialeDuplicato = hardware.some(h => h.seriale===hwForm.seriale && h.id!==hwEditId);
+    if(serialeDuplicato){ showToast("Seriale già esistente — deve essere univoco","error"); return; }
+
+    // Auto-imposta lo stato in base all'assegnazione
+    const statoAuto = hwForm.assegnatoA ? "In uso" : (hwForm.stato==="In uso" ? "Disponibile" : hwForm.stato);
+    const formToSave = { ...hwForm, stato: statoAuto };
+
+    if(hwEditId){
+      setHardware(prev=>prev.map(h=>h.id===hwEditId?{...formToSave,id:hwEditId}:h));
+      // Se è un PC assegnato, aggiorna serialePC e modelloPC nell'asset corrispondente
+      if(formToSave.tipo==="PC" && formToSave.assegnatoA){
+        setAssets(prev=>prev.map(a=>
+          a.nominativo===formToSave.assegnatoA
+            ? {...a, serialePC:formToSave.seriale, modelloPC:`${formToSave.marca} ${formToSave.modello}`.trim()}
+            : a
+        ));
       }
-    } catch (err) {
-      showToast("Errore caricamento dati: " + err.message, "error");
-    } finally {
-      setLoading(false);
+      // Se il PC era precedentemente assegnato a qualcuno e ora è rimosso o riassegnato, pulisci il vecchio
+      const vecchio = hardware.find(h=>h.id===hwEditId);
+      if(vecchio && vecchio.tipo==="PC" && vecchio.assegnatoA && vecchio.assegnatoA!==formToSave.assegnatoA){
+        setAssets(prev=>prev.map(a=>
+          a.nominativo===vecchio.assegnatoA && a.serialePC===vecchio.seriale
+            ? {...a, serialePC:"", modelloPC:""}
+            : a
+        ));
+      }
+      showToast("Hardware aggiornato!");
+    } else {
+      const newId = Math.max(0,...hardware.map(h=>h.id))+1;
+      setHardware(prev=>[...prev,{...formToSave,id:newId}]);
+      // Se è un PC assegnato, popola serialePC e modelloPC nell'asset
+      if(formToSave.tipo==="PC" && formToSave.assegnatoA){
+        setAssets(prev=>prev.map(a=>
+          a.nominativo===formToSave.assegnatoA
+            ? {...a, serialePC:formToSave.seriale, modelloPC:`${formToSave.marca} ${formToSave.modello}`.trim()}
+            : a
+        ));
+      }
+      showToast("Hardware aggiunto!");
     }
-  }, [showToast]);
+    setHwView("table"); setHwEditId(null); setHwForm(emptyHwForm);
+  };
+  const [checkLabels, setCheckLabels] = useState(["Email","HSW","Talkdesk","Opzione"]);
+  const [editingLabel, setEditingLabel] = useState(null);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // ── REALTIME ──
-  useEffect(() => {
-    const channel = supabase.channel('realtime-assets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assets' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'history' }, () => loadData())
-      .subscribe();
-    return () => supabase.removeChannel(channel);
-  }, [loadData]);
-
-  const addHistory = async (action, asset, changes=null) => {
-    await supabase.from('history').insert({
-      ts: new Date().toISOString(),
-      action,
-      asset_id: asset?.id || null,
-      asset_serial: asset?.serialePC || null,
-      asset_nome: asset?.nominativo || null,
-      changes: changes ? JSON.stringify(changes) : null,
+  const toggleCheck = (assetId, idx) => {
+    setChecks(prev => {
+      const key = `${assetId}-${idx}`;
+      return { ...prev, [key]: !prev[key] };
     });
   };
+  const getCheck = (assetId, idx) => !!checks[`${assetId}-${idx}`];
+  const [visibleCols, setVisibleCols] = useState(["nominativo","reparto","serialePC","modelloPC","numeroCellulare","sim","dataConsegna","stato","hardware"]);
+  const [colOrder, setColOrder] = useState(ALL_COLUMNS.map(c=>c.key));
+  const [showColManager, setShowColManager] = useState(false);
+  const [dragCol, setDragCol] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const [colWidths, setColWidths] = useState({});
+  const resizingCol = useRef(null);
+  const resizingStartX = useRef(0);
+  const resizingStartW = useRef(0);
+  const tableRef = useRef(null);
 
-  // ── FILTERING ──
+  const addH = (e) => setHistory(prev=>[e,...prev]);
+  const showToast = (msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),3500); };
+
   const filtered = useMemo(()=>{
     let d=[...assets];
     if(search){const q=search.toLowerCase();d=d.filter(a=>["nominativo","serialePC","numeroCellulare","sim","accountMicrosoft","email","modelloPC"].some(k=>(a[k]||"").toLowerCase().includes(q)));}
@@ -157,117 +338,77 @@ export default function AssetManager({ onLogout }) {
   const filteredH = useMemo(()=>{
     if(!historySearch) return history;
     const q=historySearch.toLowerCase();
-    return history.filter(h=>(h.asset_nome||"").toLowerCase().includes(q)||(h.asset_serial||"").toLowerCase().includes(q)||h.action.toLowerCase().includes(q));
+    return history.filter(h=>(h.assetNome||"").toLowerCase().includes(q)||(h.assetSerial||"").toLowerCase().includes(q)||h.action.toLowerCase().includes(q));
   },[history,historySearch]);
 
-  // ── CRUD ──
-  const openNew=()=>{setForm(emptyForm);setEditId(null);setView("form");};
-  const openEdit=(a)=>{setForm({...a});setEditId(a.id);setView("form");};
+  const openNew=()=>{setForm(emptyForm);setEditId(null);setPrevView("table");setView("form");};
+  const openEdit=(a)=>{setForm({...a});setEditId(a.id);setPrevView(view);setView("form");};
   const openDetail=(a)=>{setDetailId(a.id);setView("detail");};
   const sortBy=(f)=>{if(sortField===f)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortField(f);setSortDir("asc");}};
 
-  const saveForm = async () => {
-    if(!form.nominativo||!form.serialePC){showToast("Nominativo e Seriale PC obbligatori","error");return;}
-    setSaving(true);
-    try {
-      if(editId){
-        const before=assets.find(a=>a.id===editId);
-        const { error } = await supabase.from('assets').update({
-          nominativo:form.nominativo, email:form.email, reparto:form.reparto,
-          serialePC:form.serialePC, modelloPC:form.modelloPC,
-          dataAcquisto:form.dataAcquisto||null, dataConsegna:form.dataConsegna||null,
-          sim:form.sim, numeroCellulare:form.numeroCellulare,
-          accountMicrosoft:form.accountMicrosoft, note:form.note, stato:form.stato
-        }).eq('id', editId);
-        if(error) throw error;
-        const changes = diffAssets(before, {...form, id:editId});
-        await addHistory("MODIFICATO", {...form,id:editId}, changes);
-        showToast("Asset aggiornato!");
-      } else {
-        const { data, error } = await supabase.from('assets').insert({
-          nominativo:form.nominativo, email:form.email, reparto:form.reparto,
-          serialePC:form.serialePC, modelloPC:form.modelloPC,
-          dataAcquisto:form.dataAcquisto||null, dataConsegna:form.dataConsegna||null,
-          sim:form.sim, numeroCellulare:form.numeroCellulare,
-          accountMicrosoft:form.accountMicrosoft, note:form.note, stato:form.stato
-        }).select().single();
-        if(error) throw error;
-        await addHistory("CREATO", data);
-        showToast("Nuovo asset aggiunto!");
-      }
-      setView("table");
-    } catch(err) {
-      showToast("Errore salvataggio: " + err.message, "error");
-    } finally {
-      setSaving(false);
+  const saveForm=()=>{
+    if(!form.nominativo){showToast("Nominativo obbligatorio","error");return;}
+    if(editId){
+      const before=assets.find(a=>a.id===editId);
+      const changes=diffAssets(before,{...form,id:editId});
+      setAssets(prev=>prev.map(a=>a.id===editId?{...form,id:editId}:a));
+      addH(mkEvent("MODIFICATO",{...form,id:editId},changes));
+      showToast("Asset aggiornato!");
+    } else {
+      const newId=Math.max(0,...assets.map(a=>a.id))+1;
+      const na={...form,id:newId};
+      setAssets(prev=>[...prev,na]);
+      addH(mkEvent("CREATO",na));
+      showToast("Nuovo asset aggiunto!");
     }
+    setView(prevView);
   };
 
-  const doDelete = async () => {
-    const asset = assets.find(a=>a.id===deleteConfirm);
-    try {
-      const { error } = await supabase.from('assets').delete().eq('id', deleteConfirm);
-      if(error) throw error;
-      await addHistory("ELIMINATO", asset);
-      setDeleteConfirm(null);
-      if(view==="detail") setView("table");
-      showToast("Asset eliminato","info");
-    } catch(err) {
-      showToast("Errore eliminazione: " + err.message, "error");
-    }
+  const doDelete=()=>{
+    const a=assets.find(x=>x.id===deleteConfirm);
+    setAssets(prev=>prev.filter(x=>x.id!==deleteConfirm));
+    addH(mkEvent("ELIMINATO",a));
+    setDeleteConfirm(null);
+    if(view==="detail") setView("table");
+    showToast("Asset eliminato","info");
   };
 
-  // ── REPARTI ──
-  const addReparto = async (nome) => {
-    const v = nome.trim();
-    if(!v || reparti.includes(v)) return;
-    setReparti(p=>[...p,v]);
-    if(!defaultReparti.includes(v)) {
-      await supabase.from('reparti').upsert({ nome: v });
-    }
-  };
-  const removeReparto = async (nome) => {
-    setReparti(p=>p.filter(x=>x!==nome));
-    await supabase.from('reparti').delete().eq('nome', nome);
-    if(form.reparto===nome) setForm(f=>({...f,reparto:""}));
-  };
-
-  // ── EXPORT ──
   const exportCSV=()=>{downloadFile(toCSV(filtered),"asset-export.csv","text/csv;charset=utf-8");showToast(`CSV esportato (${filtered.length} record)`);};
-  const exportXLS=()=>{downloadFile(generateExcelXML(filtered),"asset-export.xls","application/vnd.ms-excel");showToast(`Excel esportato (${filtered.length} record)`);};
-  const dlTemplate=()=>{downloadFile([CSV_HEADERS.join(","),CSV_COLUMNS.map(()=>"").join(",")].join("\n"),"template-import.csv","text/csv");};
-
-  // ── IMPORT ──
-  const handleFile=(e)=>{
-    const f=e.target.files[0]; if(!f)return;
-    const r=new FileReader(); r.onload=(ev)=>setImportData(parseCSV(ev.target.result)); r.readAsText(f,"UTF-8"); e.target.value="";
+  const exportXLS=()=>{exportToXLSX(filtered,"asset-export.xlsx").then(()=>showToast(`Excel esportato (${filtered.length} record)`)).catch(e=>showToast("Errore export Excel: "+e.message,"error"));};
+  const dlTemplate = async () => {
+    const XLSX = await loadXLSX();
+    const ws = XLSX.utils.aoa_to_sheet([CSV_HEADERS, CSV_COLUMNS.map(() => "")]);
+    ws["!cols"] = CSV_HEADERS.map(h => ({ wch: Math.max(h.length + 4, 16) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Asset");
+    XLSX.writeFile(wb, "template-import.xlsx");
   };
 
-  const confirmImport = async () => {
-    if(!importData||!importData.records.length) return;
-    setSaving(true);
+  const handleFile = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    e.target.value = "";
     try {
-      if(importMode==="sostituisci") {
-        await supabase.from('assets').delete().neq('id', 0);
-      }
-      const { error } = await supabase.from('assets').insert(importData.records.map(r=>({
-        nominativo:r.nominativo, email:r.email, reparto:r.reparto,
-        serialePC:r.serialePC, modelloPC:r.modelloPC,
-        dataAcquisto:r.dataAcquisto||null, dataConsegna:r.dataConsegna||null,
-        sim:r.sim, numeroCellulare:r.numeroCellulare,
-        accountMicrosoft:r.accountMicrosoft, note:r.note, stato:r.stato
-      })));
-      if(error) throw error;
-      await addHistory(importMode==="sostituisci"?"IMPORTAZIONE_COMPLETA":"IMPORTAZIONE",
-        { id:null, serialePC:null, nominativo:`${importData.records.length} asset` });
-      showToast(`${importData.records.length} asset importati!`);
-      setImportData(null);
-      setView("table");
-    } catch(err) {
-      showToast("Errore importazione: " + err.message, "error");
-    } finally {
-      setSaving(false);
+      const result = await parseXLSX(f);
+      setImportData(result);
+    } catch (err) {
+      setImportData({ records: [], errors: ["Errore lettura file: " + err.message] });
     }
+  };
+
+  const confirmImport=()=>{
+    if(!importData||!importData.records.length)return;
+    let nid=Math.max(0,...assets.map(a=>a.id))+1;
+    const newAssets=importData.records.map(r=>({...r,id:nid++}));
+    if(importMode==="sostituisci"){
+      setAssets(newAssets);
+      addH({id:Date.now(),ts:Date.now(),action:"IMPORTAZIONE_COMPLETA",assetId:null,assetSerial:null,assetNome:`${newAssets.length} asset`,changes:null});
+    } else {
+      setAssets(prev=>[...prev,...newAssets]);
+      addH({id:Date.now(),ts:Date.now(),action:"IMPORTAZIONE",assetId:null,assetSerial:null,assetNome:`${newAssets.length} asset aggiunti`,changes:null});
+    }
+    showToast(`${newAssets.length} asset importati!`);
+    setImportData(null);
+    setView("table");
   };
 
   const SortIcon=({field})=><span style={{opacity:sortField===field?1:0.3,marginLeft:4,fontSize:10}}>{sortField===field&&sortDir==="desc"?"▼":"▲"}</span>;
@@ -279,62 +420,79 @@ export default function AssetManager({ onLogout }) {
     return <span style={{display:"inline-flex",alignItems:"center",gap:4,background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,padding:"2px 9px",fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>{icon} {action.replace(/_/g," ")}</span>;
   };
 
-  if (loading) return (
-    <div style={{background:"#0d1117",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'IBM Plex Mono',monospace",color:"#8b949e",flexDirection:"column",gap:16}}>
-      <div style={{fontSize:32,animation:"spin 1s linear infinite"}}>⟳</div>
-      <div style={{fontSize:13}}>Caricamento dati...</div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
+  // Shortcuts per stili comuni basati sul tema corrente
+  const s = {
+    surface:  {background:T.surface,  border:`1px solid ${T.border}`},
+    surface2: {background:T.surface2, border:`1px solid ${T.border}`},
+    input:    {background:T.inputBg,  border:`1px solid ${T.border2}`, color:T.text, borderRadius:6, fontFamily:"'JetBrains Mono',monospace", fontSize:13, padding:"9px 12px", width:"100%"},
+    textSub:  {color:T.textSub},
+    textMuted:{color:T.textMuted},
+    divider:  {borderBottom:`1px solid ${T.border}`},
+  };
 
   return (
-    <div style={{fontFamily:"'IBM Plex Mono','Courier New',monospace",background:"#0d1117",minHeight:"100vh",color:"#e6edf3"}}>
+    <div style={{fontFamily:"'Inter','JetBrains Mono',sans-serif",background:T.bg,minHeight:"100vh",color:T.text,transition:"background .2s,color .2s"}}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#161b22}::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
-        input,select,textarea{outline:none}
-        .btn{cursor:pointer;border:none;border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;padding:8px 16px;transition:all .15s}
+        ::-webkit-scrollbar{width:6px;height:6px}
+        ::-webkit-scrollbar-track{background:${T.scrollTr}}
+        ::-webkit-scrollbar-thumb{background:${T.scrollTh};border-radius:3px}
+        input,select,textarea{outline:none;transition:border .15s,background .2s,color .2s}
+        .btn{cursor:pointer;border:none;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;padding:8px 16px;transition:all .15s}
         .btn-primary{background:#238636;color:#fff}.btn-primary:hover{background:#2ea043}
-        .btn-primary:disabled{background:#21262d;color:#484f58;cursor:default}
         .btn-danger{background:#da3633;color:#fff}.btn-danger:hover{background:#f85149}
-        .btn-ghost{background:transparent;color:#8b949e;border:1px solid #30363d}.btn-ghost:hover{background:#161b22;color:#e6edf3}
+        .btn-ghost{background:transparent;color:${T.textSub};border:1px solid ${T.border2}}.btn-ghost:hover{background:${T.hover};color:${T.text}}
         .btn-accent{background:#1f6feb;color:#fff}.btn-accent:hover{background:#388bfd}
-        .btn-orange{background:#9a6700;color:#e6edf3}.btn-orange:hover{background:#d29922}
+        .btn-orange{background:#9a6700;color:#fff}.btn-orange:hover{background:#d29922}
         .btn-purple{background:#6e40c9;color:#fff}.btn-purple:hover{background:#8957e5}
         .fi{display:flex;flex-direction:column;gap:6px}
-        .fl{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.08em}
-        .fi2{background:#0d1117;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 12px;transition:border .15s;width:100%}
-        .fi2:focus{border-color:#388bfd}.fi2::placeholder{color:#484f58}
-        select.fi2 option{background:#161b22}
-        .th{cursor:pointer;user-select:none;white-space:nowrap}.th:hover{color:#58a6ff}
-        .rh:hover{background:#1c2128!important}
+        .fl{font-size:11px;color:${T.textSub};text-transform:uppercase;letter-spacing:.08em}
+        .fi2{background:${T.inputBg};border:1px solid ${T.border2};border-radius:6px;color:${T.text};font-family:'JetBrains Mono',monospace;font-size:13px;padding:9px 12px;width:100%}
+        .fi2:focus{border-color:#388bfd}
+        .fi2::placeholder{color:${T.textMuted}}
+        select.fi2 option{background:${T.selectBg};color:${T.text}}
+        .th{cursor:pointer;user-select:none;white-space:nowrap}.th:hover{color:${T.link}}
+        .rh:hover{background:${T.hover}!important}
         .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-        .tag{display:inline-block;background:#161b22;border:1px solid #30363d;border-radius:4px;padding:2px 8px;font-size:11px;color:#8b949e}
-        .ntab{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:13px;color:#8b949e;transition:all .15s;border:none;background:transparent;font-family:'IBM Plex Mono',monospace;white-space:nowrap}
-        .ntab:hover{color:#e6edf3;background:#21262d}
-        .ntab.on{color:#e6edf3;background:#21262d;border-bottom:2px solid #1f6feb}
-        .dz{border:2px dashed #30363d;border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:all .2s}
+        .tag{display:inline-block;background:${T.surface2};border:1px solid ${T.border};border-radius:4px;padding:2px 8px;font-size:11px;color:${T.textSub}}
+        .ntab{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:13px;color:${T.textSub};transition:all .15s;border:none;background:transparent;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+        .ntab:hover{color:${T.text};background:${T.tabOn}}
+        .ntab.on{color:${T.text};background:${T.tabOn};border-bottom:2px solid #1f6feb}
+        .dz{border:2px dashed ${T.border2};border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:all .2s}
         .dz:hover{border-color:#1f6feb;background:#1f6feb0a}
         @keyframes si{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .ai{animation:si .2s ease}
         @keyframes ti{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes themeSwitch{from{opacity:.6}to{opacity:1}}
+        .theme-switch{animation:themeSwitch .25s ease}
       `}</style>
 
-      {/* TOAST */}
-      {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:999,background:toast.type==="error"?"#da3633":toast.type==="info"?"#1f6feb":"#238636",color:"#fff",borderRadius:8,padding:"12px 20px",fontSize:13,animation:"ti .2s ease",boxShadow:"0 8px 24px rgba(0,0,0,.5)",maxWidth:340}}>{toast.msg}</div>}
+      {/* HW DELETE MODAL */}
+      {hwDeleteConfirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:998,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:T.surface,border:`1px solid ${T.border2}`,borderRadius:12,padding:32,width:360,textAlign:"center",boxShadow:"0 16px 48px rgba(0,0,0,.3)"}}>
+            <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:15,color:T.text,marginBottom:8}}>Eliminare questo hardware?</div>
+            <div style={{color:T.textSub,fontSize:13,marginBottom:24}}>L'operazione non può essere annullata.</div>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              <button className="btn btn-ghost" onClick={()=>setHwDeleteConfirm(null)}>Annulla</button>
+              <button className="btn btn-danger" onClick={()=>{setHardware(prev=>prev.filter(h=>h.id!==hwDeleteConfirm));setHwDeleteConfirm(null);showToast("Hardware eliminato","info");}}>Elimina</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* SAVING OVERLAY */}
-      {saving&&<div style={{position:"fixed",bottom:20,right:20,zIndex:998,background:"#161b22",border:"1px solid #30363d",borderRadius:8,padding:"10px 16px",fontSize:12,color:"#8b949e",display:"flex",alignItems:"center",gap:8}}><span style={{display:"inline-block",animation:"spin .8s linear infinite"}}>⟳</span> Salvataggio...</div>}
+      {/* TOAST */}
+      {toast&&<div style={{position:"fixed",top:20,right:20,zIndex:999,background:toast.type==="error"?"#da3633":toast.type==="info"?"#1f6feb":"#238636",color:"#fff",borderRadius:8,padding:"12px 20px",fontSize:13,animation:"ti .2s ease",boxShadow:"0 8px 24px rgba(0,0,0,.3)",maxWidth:340}}>{toast.msg}</div>}
 
       {/* DELETE MODAL */}
       {deleteConfirm&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:997,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <div style={{background:"#161b22",border:"1px solid #30363d",borderRadius:12,padding:32,width:360,textAlign:"center"}}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:998,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <div style={{background:T.surface,border:`1px solid ${T.border2}`,borderRadius:12,padding:32,width:360,textAlign:"center",boxShadow:"0 16px 48px rgba(0,0,0,.3)"}}>
             <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
-            <div style={{fontFamily:"'IBM Plex Sans',sans-serif",fontSize:15,marginBottom:8}}>Eliminare questo asset?</div>
-            <div style={{color:"#8b949e",fontSize:13,marginBottom:24}}>L'operazione verrà registrata nello storico.</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:15,color:T.text,marginBottom:8}}>Eliminare questo asset?</div>
+            <div style={{color:T.textSub,fontSize:13,marginBottom:24}}>L'operazione verrà registrata nello storico.</div>
             <div style={{display:"flex",gap:10,justifyContent:"center"}}>
               <button className="btn btn-ghost" onClick={()=>setDeleteConfirm(null)}>Annulla</button>
               <button className="btn btn-danger" onClick={doDelete}>Elimina</button>
@@ -345,70 +503,137 @@ export default function AssetManager({ onLogout }) {
 
       {/* REPARTI MANAGER MODAL */}
       {showRepartiManager&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:997,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowRepartiManager(false)}>
-          <div style={{background:"#161b22",border:"1px solid #30363d",borderRadius:12,padding:28,width:440,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:998,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setShowRepartiManager(false)}>
+          <div style={{background:T.surface,border:`1px solid ${T.border2}`,borderRadius:12,padding:28,width:440,maxHeight:"80vh",overflowY:"auto",boxShadow:"0 16px 48px rgba(0,0,0,.3)"}} onClick={e=>e.stopPropagation()}>
             <div style={{display:"flex",alignItems:"center",marginBottom:20}}>
-              <div style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:16}}>⚙ Gestisci Reparti</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:16,color:T.text}}>⚙ Gestisci Ruoli</div>
               <div style={{flex:1}}/>
               <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>setShowRepartiManager(false)}>✕</button>
             </div>
-            <div style={{fontSize:12,color:"#8b949e",marginBottom:16}}>Aggiungi o rimuovi reparti. I reparti predefiniti non possono essere eliminati.</div>
             <div style={{display:"flex",gap:6,marginBottom:16}}>
-              <input className="fi2" placeholder="Nome nuovo reparto..." value={newReparto} onChange={e=>setNewReparto(e.target.value)}
-                onKeyDown={e=>{if(e.key==="Enter"){addReparto(newReparto);setNewReparto("");}}}
+              <input className="fi2" placeholder="Nome nuovo ruolo..." value={newReparto} onChange={e=>setNewReparto(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"&&newReparto.trim()){const v=newReparto.trim();if(!reparti.includes(v))setReparti(p=>[...p,v]);setNewReparto("");}}}
                 style={{flex:1}}/>
-              <button className="btn btn-primary" style={{padding:"5px 12px",fontSize:12}} onClick={()=>{addReparto(newReparto);setNewReparto("");}}>+ Aggiungi</button>
+              <button className="btn btn-primary" style={{padding:"5px 12px",fontSize:12}} onClick={()=>{const v=newReparto.trim();if(v&&!reparti.includes(v)){setReparti(p=>[...p,v]);}setNewReparto("");}}>+ Aggiungi</button>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {reparti.map(r=>{
-                const isDef=defaultReparti.includes(r);
-                return (
-                  <div key={r} style={{display:"flex",alignItems:"center",background:"#0d1117",borderRadius:6,padding:"8px 12px",border:"1px solid #21262d"}}>
-                    <span style={{flex:1,fontSize:13}}>{r}</span>
-                    {isDef
-                      ? <span style={{fontSize:10,color:"#484f58",border:"1px solid #21262d",borderRadius:4,padding:"1px 6px"}}>predefinito</span>
-                      : <button onClick={()=>removeReparto(r)} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14,padding:"0 4px"}} title="Rimuovi">🗑</button>
-                    }
-                  </div>
-                );
-              })}
+              {reparti.map(r=>(
+                <div key={r} style={{display:"flex",alignItems:"center",background:T.surface2,borderRadius:6,padding:"8px 12px",border:`1px solid ${T.border}`}}>
+                  <span style={{flex:1,fontSize:13,color:T.text}}>{r}</span>
+                  <button onClick={()=>{setReparti(p=>p.filter(x=>x!==r));if(form.reparto===r)setForm(f=>({...f,reparto:""}));}} style={{background:"transparent",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14,padding:"0 4px"}} title="Rimuovi">🗑</button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
 
       {/* HEADER */}
-      <div style={{borderBottom:"1px solid #21262d",padding:"14px 28px",display:"flex",alignItems:"center",gap:12,background:"#161b22",flexWrap:"wrap"}}>
+      <div style={{borderBottom:`1px solid ${T.border}`,padding:"12px 24px",display:"flex",alignItems:"center",gap:12,background:T.surface,flexWrap:"wrap",transition:"background .2s"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{background:"#1f6feb",borderRadius:8,padding:"6px 10px",fontSize:18}}>🖥️</div>
+          <div style={{background:T.accent,borderRadius:12,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🖥️</div>
           <div>
-            <div style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:17,letterSpacing:"-0.01em"}}>AssetManager</div>
-            <div style={{fontSize:10,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em"}}>Gestione inventario IT</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:17,letterSpacing:"-0.02em",color:T.text}}>AssetManager</div>
+            <div style={{fontSize:11,color:T.textSub,letterSpacing:"0.04em",fontWeight:400}}>Gestione inventario IT</div>
           </div>
         </div>
         <div style={{display:"flex",gap:2,marginLeft:16}}>
-          {[["table","📦 Asset"],["history","🕓 Storico"],["import","⬆ Importa"]].map(([v,l])=>(
+          {[["table","📦 Asset"],["hardware","🖥 Hardware"],["history","🕓 Storico"],["import","⬆ Importa"]].map(([v,l])=>(
             <button key={v} className={`ntab${view===v?" on":""}`} onClick={()=>setView(v)}>{l}</button>
           ))}
         </div>
         <div style={{flex:1}}/>
-        <div style={{display:"flex",gap:14,fontSize:12,color:"#8b949e"}}>
-          <span>📦 <b style={{color:"#e6edf3"}}>{assets.length}</b></span>
+        <div style={{display:"flex",gap:14,fontSize:12,color:T.textSub}}>
+          <span>📦 <b style={{color:T.text}}>{assets.length}</b> totali</span>
           <span>✅ <b style={{color:"#22c55e"}}>{assets.filter(a=>a.stato==="Attivo").length}</b> attivi</span>
         </div>
+        {/* THEME TOGGLE */}
+        <div style={{display:"flex",gap:2,background:T.surface2,borderRadius:12,padding:3,border:`1px solid ${T.border}`}}>
+          {themeList.map((t,i)=>(
+            <button key={t} onClick={()=>setTheme(t)}
+              style={{background:theme===t?T.accent:"transparent",border:"none",borderRadius:9,padding:"5px 11px",cursor:"pointer",fontSize:13,transition:"all .15s",color:theme===t?"#fff":T.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:500}}
+              title={themeLabels[i]}
+            >{themeIcons[i]}</button>
+          ))}
+        </div>
         <button className="btn btn-primary" onClick={openNew}>+ Nuovo Asset</button>
-        <button className="btn btn-ghost" onClick={onLogout} style={{padding:"6px 12px",fontSize:12}} title="Esci">⏻ Esci</button>
       </div>
 
-      <div style={{padding:"24px 28px",maxWidth:1440,margin:"0 auto"}}>
+      <div style={{padding:"24px 28px 48px"}}>
 
         {/* ══ TABLE ══ */}
         {view==="table"&&(
           <div className="ai">
+
+            {/* COL MANAGER PANEL */}
+            {showColManager&&(
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:20,marginBottom:16,animation:"si .15s ease"}}>
+                <div style={{display:"flex",alignItems:"center",marginBottom:14}}>
+                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14,color:T.text}}>⚙ Gestisci colonne</div>
+                  <div style={{flex:1}}/>
+                  <div style={{fontSize:12,color:T.textSub,marginRight:16}}>Trascina per riordinare · Spunta per mostrare/nascondere</div>
+                  <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{setVisibleCols(ALL_COLUMNS.map(c=>c.key));setColOrder(ALL_COLUMNS.map(c=>c.key));}}>Ripristina</button>
+                  <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:12,marginLeft:6}} onClick={()=>setShowColManager(false)}>✕ Chiudi</button>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                  {colOrder.map((key,idx)=>{
+                    const col = ALL_COLUMNS.find(c=>c.key===key);
+                    if(!col) return null;
+                    const isVisible = visibleCols.includes(key);
+                    const isDragging = dragCol===key;
+                    const isOver = dragOver===key;
+                    return (
+                      <div key={key}
+                        draggable
+                        onDragStart={()=>setDragCol(key)}
+                        onDragOver={e=>{e.preventDefault();setDragOver(key);}}
+                        onDragEnd={()=>{
+                          if(dragCol&&dragOver&&dragCol!==dragOver){
+                            setColOrder(prev=>{
+                              const arr=[...prev];
+                              const fi=arr.indexOf(dragCol);
+                              const ti=arr.indexOf(dragOver);
+                              arr.splice(fi,1);
+                              arr.splice(ti,0,dragCol);
+                              return arr;
+                            });
+                          }
+                          setDragCol(null);setDragOver(null);
+                        }}
+                        onClick={()=>{
+                          if(col.always) return;
+                          setVisibleCols(prev=>prev.includes(key)?prev.filter(k=>k!==key):[...prev,key]);
+                        }}
+                        style={{
+                          display:"flex",alignItems:"center",gap:8,
+                          background: isOver&&!isDragging ? "#1f6feb22" : isVisible ? T.surface2 : T.bg,
+                          border:`1px solid ${isOver&&!isDragging?"#1f6feb":isVisible?T.border:T.border2}`,
+                          borderRadius:8,padding:"7px 12px",cursor:col.always?"default":"pointer",
+                          opacity:isDragging?0.4:1,
+                          transition:"all .12s",userSelect:"none",
+                          transform: isOver&&!isDragging?"scale(1.03)":"scale(1)",
+                        }}
+                      >
+                        <span style={{fontSize:13,cursor:"grab",color:T.textMuted}}>⠿</span>
+                        <span style={{
+                          width:14,height:14,borderRadius:4,border:`2px solid ${isVisible?"#1f6feb":T.border2}`,
+                          background:isVisible?"#1f6feb":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all .15s"
+                        }}>
+                          {isVisible&&<span style={{color:"#fff",fontSize:9,fontWeight:700}}>✓</span>}
+                        </span>
+                        <span style={{fontSize:13,color:isVisible?T.text:T.textMuted,fontWeight:isVisible?500:400}}>{col.label}</span>
+                        {col.always&&<span style={{fontSize:10,color:T.textMuted,border:`1px solid ${T.border}`,borderRadius:3,padding:"0 4px"}}>fisso</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
               <input className="fi2" placeholder="🔍  Cerca nominativo, seriale, SIM, numero, modello..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:220}}/>
-              <select className="fi2" value={filterReparto} onChange={e=>setFilterReparto(e.target.value)} style={{width:155}}>
-                <option value="Tutti">Tutti i reparti</option>
+              <select className="fi2" value={filterReparto} onChange={e=>setFilterReparto(e.target.value)} style={{width:185}}>
+                <option value="Tutti">Tutti i ruoli</option>
                 {reparti.map(r=><option key={r}>{r}</option>)}
               </select>
               <select className="fi2" value={filterStato} onChange={e=>setFilterStato(e.target.value)} style={{width:165}}>
@@ -417,54 +642,179 @@ export default function AssetManager({ onLogout }) {
               </select>
               {(search||filterReparto!=="Tutti"||filterStato!=="Tutti")&&<button className="btn btn-ghost" onClick={()=>{setSearch("");setFilterReparto("Tutti");setFilterStato("Tutti");}}>✕ Reset</button>}
               <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
-                <button className="btn btn-orange" onClick={exportCSV}>⬇ CSV</button>
+                <button className="btn btn-ghost" onClick={()=>setShowColManager(v=>!v)} style={{display:"flex",alignItems:"center",gap:6,borderColor:showColManager?"#1f6feb":undefined,color:showColManager?"#1f6feb":undefined}}>
+                  ⊞ Colonne <span style={{background:T.surface2,borderRadius:10,padding:"1px 6px",fontSize:11}}>{visibleCols.length}</span>
+                </button>
                 <button className="btn btn-purple" onClick={exportXLS}>⬇ Excel</button>
               </div>
             </div>
-            <div style={{background:"#161b22",borderRadius:10,border:"1px solid #21262d",overflow:"hidden"}}>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                  <thead>
-                    <tr style={{background:"#0d1117",borderBottom:"1px solid #21262d"}}>
-                      {[["nominativo","Nominativo"],["reparto","Reparto"],["serialePC","Seriale PC"],["modelloPC","Modello"],["numeroCellulare","Cellulare"],["sim","SIM"],["dataConsegna","Consegna"],["stato","Stato"]].map(([f,l])=>(
-                        <th key={f} className="th" onClick={()=>sortBy(f)} style={{padding:"10px 14px",textAlign:"left",color:"#8b949e",fontWeight:500,fontSize:11,textTransform:"uppercase",letterSpacing:"0.07em"}}>{l}<SortIcon field={f}/></th>
-                      ))}
-                      <th style={{padding:"10px 14px",color:"#8b949e",fontSize:11,textTransform:"uppercase"}}>Azioni</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.length===0?(
-                      <tr><td colSpan={9} style={{padding:"48px 0",textAlign:"center",color:"#484f58"}}>Nessun asset trovato</td></tr>
-                    ):filtered.map((a,i)=>(
-                      <tr key={a.id} className="rh" style={{borderBottom:"1px solid #21262d",background:i%2===0?"transparent":"#0d1117"}}>
-                        <td style={{padding:"11px 14px"}}>
-                          <div style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:500,fontSize:13}}>{a.nominativo}</div>
-                          <div style={{fontSize:11,color:"#484f58"}}>{a.email}</div>
-                        </td>
-                        <td style={{padding:"11px 14px"}}><span className="tag">{a.reparto||"—"}</span></td>
-                        <td style={{padding:"11px 14px",fontWeight:500,color:"#58a6ff"}}>{a.serialePC}</td>
-                        <td style={{padding:"11px 14px",color:"#8b949e",fontSize:12}}>{a.modelloPC||"—"}</td>
-                        <td style={{padding:"11px 14px"}}>{a.numeroCellulare||"—"}</td>
-                        <td style={{padding:"11px 14px",color:"#8b949e",fontSize:12}}>{a.sim||"—"}</td>
-                        <td style={{padding:"11px 14px",color:"#8b949e",fontSize:12}}>{fmtDate(a.dataConsegna)}</td>
-                        <td style={{padding:"11px 14px"}}><span className="badge" style={{background:statoColor(a.stato)+"22",color:statoColor(a.stato),border:`1px solid ${statoColor(a.stato)}44`}}>{a.stato}</span></td>
-                        <td style={{padding:"11px 14px"}}>
-                          <div style={{display:"flex",gap:6}}>
-                            <button className="btn btn-ghost" onClick={()=>openDetail(a)} style={{padding:"5px 10px",fontSize:12}}>👁</button>
-                            <button className="btn btn-accent" onClick={()=>openEdit(a)} style={{padding:"5px 10px",fontSize:12}}>✏️</button>
-                            <button className="btn btn-danger" onClick={()=>setDeleteConfirm(a.id)} style={{padding:"5px 10px",fontSize:12}}>🗑</button>
+
+            {(()=>{
+              const activeCols = colOrder.filter(k=>visibleCols.includes(k)).map(k=>ALL_COLUMNS.find(c=>c.key===k)).filter(Boolean);
+
+              const startResize = (e, key) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const thEl = e.currentTarget.parentElement;
+                resizingCol.current = key;
+                resizingStartX.current = e.clientX;
+                resizingStartW.current = colWidths[key] || thEl.offsetWidth;
+                document.body.style.cursor = "col-resize";
+                document.body.style.userSelect = "none";
+                const onMove = (ev) => {
+                  const delta = ev.clientX - resizingStartX.current;
+                  const newW = Math.max(60, resizingStartW.current + delta);
+                  setColWidths(prev => ({...prev, [resizingCol.current]: newW}));
+                };
+                const onUp = () => {
+                  resizingCol.current = null;
+                  document.body.style.cursor = "";
+                  document.body.style.userSelect = "";
+                  window.removeEventListener("mousemove", onMove);
+                  window.removeEventListener("mouseup", onUp);
+                };
+                window.addEventListener("mousemove", onMove);
+                window.addEventListener("mouseup", onUp);
+              };
+
+              const renderCell = (a, key, w) => {
+                const cellStyle = {padding:"11px 14px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth: w||undefined};
+                switch(key){
+                  case "nominativo": return <td key={key} style={{...cellStyle, maxWidth: w||220}}><div style={{fontFamily:"'Inter',sans-serif",fontWeight:500,fontSize:13,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.nominativo}</div><div style={{fontSize:11,color:T.textSub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:400,marginTop:2}}>{a.email}</div></td>;
+                  case "email": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a.email||"—"}</td>;
+                  case "reparto": return <td key={key} style={cellStyle}><span className="tag" style={{display:"inline-block",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}}>{a.reparto||"—"}</span></td>;
+                  case "serialePC": return <td key={key} style={{...cellStyle,fontWeight:500,color:T.link}}>{a.serialePC}</td>;
+                  case "modelloPC": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a.modelloPC||"—"}</td>;
+                  case "dataAcquisto": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{fmtDate(a.dataAcquisto)}</td>;
+                  case "dataConsegna": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{fmtDate(a.dataConsegna)}</td>;
+                  case "numeroCellulare": return <td key={key} style={{...cellStyle,color:T.text}}>{a.numeroCellulare||"—"}</td>;
+                  case "sim": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a.sim||"—"}</td>;
+                  case "accountMicrosoft": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a.accountMicrosoft||"—"}</td>;
+                  case "note": return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a.note||"—"}</td>;
+                  case "stato": return <td key={key} style={cellStyle}><span className="badge" style={{background:statoColor(a.stato)+"22",color:statoColor(a.stato),border:`1px solid ${statoColor(a.stato)}44`}}>{a.stato}</span></td>;
+                  case "hardware": {
+                    const tipoIcon = {"PC":"🖥","Monitor":"🖥","Telefono":"📱","SIM":"📡","Cuffie":"🎧","Altro":"📦"};
+                    const assegnati = hardware.filter(h=>h.assegnatoA && h.assegnatoA.toLowerCase()===a.nominativo.toLowerCase());
+                    return <td key={key} style={{...cellStyle, maxWidth:w||200}}>
+                      {assegnati.length===0
+                        ? <span style={{color:T.textMuted,fontSize:12}}>—</span>
+                        : <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                            {assegnati.map(h=>(
+                              <span key={h.id} title={`${h.marca} ${h.modello} · ${h.seriale}`} style={{display:"inline-flex",alignItems:"center",gap:3,background:T.surface2,border:`1px solid ${T.border}`,borderRadius:4,padding:"2px 6px",fontSize:11,color:T.textSub,whiteSpace:"nowrap"}}>
+                                {tipoIcon[h.tipo]||"📦"} {h.tipo}
+                              </span>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{padding:"10px 16px",borderTop:"1px solid #21262d",fontSize:11,color:"#484f58",display:"flex",gap:16,flexWrap:"wrap"}}>
-                <span>{filtered.length} di {assets.length} record</span>
-                {filtered.length<assets.length&&<span style={{color:"#f59e0b"}}>⚠ Filtri attivi — l'esportazione include solo i record visibili</span>}
-              </div>
-            </div>
+                      }
+                    </td>;
+                  }
+                  default: return <td key={key} style={{...cellStyle,color:T.textSub,fontSize:12}}>{a[key]||"—"}</td>;
+                }
+              };
+
+              return (
+                <div style={{background:T.surface,borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{overflowX:"auto"}} ref={tableRef}>
+                    <table style={{tableLayout:"fixed",borderCollapse:"collapse",fontSize:13,minWidth:"100%"}}>
+                      <colgroup>
+                        {activeCols.map(col=>(
+                          <col key={col.key} style={{width: colWidths[col.key] ? colWidths[col.key]+"px" : undefined}}/>
+                        ))}
+                        <col style={{width:"110px"}}/>
+                      </colgroup>
+                      <thead>
+                        <tr style={{background:T.surface2,borderBottom:`1px solid ${T.border}`}}>
+                          {activeCols.map(col=>(
+                            <th key={col.key} className="th" style={{padding:"10px 14px",textAlign:"left",color:T.textSub,fontWeight:500,fontSize:11,textTransform:"uppercase",letterSpacing:"0.07em",position:"relative",overflow:"hidden",whiteSpace:"nowrap", width: colWidths[col.key]||undefined}}>
+                              <span onClick={()=>sortBy(col.key)} style={{display:"inline-flex",alignItems:"center",gap:2,cursor:"pointer"}}>
+                                {col.label}<SortIcon field={col.key}/>
+                              </span>
+                              {/* RESIZE HANDLE */}
+                              <span
+                                onMouseDown={e=>startResize(e,col.key)}
+                                style={{position:"absolute",top:0,right:0,width:6,height:"100%",cursor:"col-resize",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2,background:"transparent",transition:"background .15s"}}
+                                onMouseEnter={e=>e.currentTarget.style.background="#1f6feb55"}
+                                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                                title="Trascina per ridimensionare"
+                              >
+                                <span style={{width:2,height:"60%",background:"currentColor",borderRadius:1,opacity:0.4,pointerEvents:"none"}}/>
+                              </span>
+                            </th>
+                          ))}
+                          <th style={{padding:"10px 14px",color:T.textSub,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap",minWidth:220}}>
+                            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                              {checkLabels.map((lbl,i)=>(
+                                <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:46}}>
+                                  {editingLabel===i ? (
+                                    <input
+                                      autoFocus
+                                      defaultValue={lbl}
+                                      onBlur={e=>{const v=e.target.value.trim();setCheckLabels(p=>{const n=[...p];n[i]=v;return n;});setEditingLabel(null);}}
+                                      onKeyDown={e=>{if(e.key==="Enter")e.target.blur();if(e.key==="Escape")setEditingLabel(null);}}
+                                      style={{width:60,fontSize:10,background:T.inputBg,border:`1px solid ${T.border2}`,borderRadius:4,color:T.text,padding:"2px 4px",textAlign:"center",fontFamily:"'JetBrains Mono',monospace"}}
+                                    />
+                                  ) : (
+                                    <span
+                                      onClick={()=>setEditingLabel(i)}
+                                      title="Clicca per rinominare"
+                                      style={{fontSize:10,color:lbl?T.textSub:T.textMuted,cursor:"pointer",textAlign:"center",maxWidth:52,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderBottom:`1px dashed ${lbl?T.border2:T.border}`}}
+                                    >{lbl||`Opzione ${i+1}`}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </th>
+                          <th style={{padding:"10px 14px",color:T.textSub,fontSize:11,textTransform:"uppercase",whiteSpace:"nowrap"}}>Azioni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.length===0?(
+                          <tr><td colSpan={activeCols.length+2} style={{padding:"48px 0",textAlign:"center",color:T.textMuted}}>Nessun asset trovato</td></tr>
+                        ):filtered.map((a,i)=>(
+                          <tr key={a.id} className="rh" style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":T.surface2}}>
+                            {activeCols.map(col=>renderCell(a,col.key,colWidths[col.key]))}
+                            <td style={{padding:"11px 14px"}}>
+                              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                                {checkLabels.map((_,idx)=>(
+                                  <div key={idx} style={{display:"flex",flexDirection:"column",alignItems:"center",minWidth:46}}>
+                                    <div
+                                      onClick={()=>toggleCheck(a.id,idx)}
+                                      style={{
+                                        width:20,height:20,borderRadius:5,cursor:"pointer",
+                                        border:`2px solid ${getCheck(a.id,idx)?"#22c55e":T.border2}`,
+                                        background:getCheck(a.id,idx)?"#22c55e":"transparent",
+                                        display:"flex",alignItems:"center",justifyContent:"center",
+                                        transition:"all .15s",flexShrink:0
+                                      }}
+                                    >
+                                      {getCheck(a.id,idx)&&<span style={{color:"#fff",fontSize:12,fontWeight:700,lineHeight:1}}>✓</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td style={{padding:"11px 14px"}}>
+                              <div style={{display:"flex",gap:6}}>
+                                <button onClick={()=>openDetail(a)} style={{padding:"5px 10px",fontSize:12,background:"#d29922",border:"none",borderRadius:6,cursor:"pointer",transition:"all .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#e3b341"} onMouseLeave={e=>e.currentTarget.style.background="#d29922"}>👁</button>
+                                <button className="btn btn-accent" onClick={()=>openEdit(a)} style={{padding:"5px 10px",fontSize:12}}>✏️</button>
+                                <button className="btn btn-danger" onClick={()=>setDeleteConfirm(a.id)} style={{padding:"5px 10px",fontSize:12}}>🗑</button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{padding:"10px 16px",borderTop:`1px solid ${T.border}`,fontSize:12,color:T.textSub,display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+                    <span>{filtered.length} di {assets.length} record · {activeCols.length} colonne visibili</span>
+                    {filtered.length<assets.length&&<span style={{color:"#f59e0b"}}>⚠ Filtri attivi — l'esportazione include solo i record visibili</span>}
+                    {Object.keys(colWidths).length>0&&(
+                      <button className="btn btn-ghost" style={{padding:"2px 8px",fontSize:11,marginLeft:"auto"}} onClick={()=>setColWidths({})}>↺ Reset larghezze</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
@@ -472,30 +822,17 @@ export default function AssetManager({ onLogout }) {
         {view==="form"&&(
           <div className="ai">
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-              <button className="btn btn-ghost" onClick={()=>setView("table")} style={{padding:"6px 12px"}}>← Indietro</button>
-              <h2 style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:18}}>{editId?"Modifica Asset":"Nuovo Asset"}</h2>
+              <button className="btn btn-ghost" onClick={()=>setView(prevView)} style={{padding:"6px 12px"}}>← Indietro</button>
+              <h2 style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:18,color:T.text}}>{editId?"Modifica Asset":"Nuovo Asset"}</h2>
             </div>
-            <div style={{background:"#161b22",border:"1px solid #21262d",borderRadius:12,padding:28,maxWidth:900}}>
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:28,maxWidth:900}}>
               {[
-                {icon:"👤",title:"Dati Dipendente",grid:"1fr 1fr",fields:[
-                  ["nominativo","Nominativo *","text","Nome Cognome"],
-                  ["email","Email aziendale","email","nome.cognome@azienda.it"],
-                  ["reparto","Reparto","reparto",null],
-                  ["accountMicrosoft","Account Microsoft 365","text","nome@azienda.onmicrosoft.com"],
-                ]},
-                {icon:"🖥️",title:"Dati PC",grid:"1fr 1fr",fields:[
-                  ["serialePC","Numero Seriale *","text","PC-2024-XXX"],
-                  ["modelloPC","Modello PC","text","es. Dell Latitude 5540"],
-                  ["dataAcquisto","Data Acquisto","date",""],
-                  ["dataConsegna","Data Consegna","date",""],
-                ]},
-                {icon:"📱",title:"Dati SIM / Telefono",grid:"1fr 1fr",fields:[
-                  ["sim","Codice SIM","text","SIM-IT-XXX"],
-                  ["numeroCellulare","Numero Cellulare","text","+39 3XX XXXXXXX"],
-                ]},
+                {icon:"👤",title:"Dati Dipendente",grid:"1fr 1fr",fields:[["nominativo","Nominativo *","text","Nome Cognome"],["email","Email aziendale","email","nome.cognome@azienda.it"],["reparto","Ruolo","reparto",null],["accountMicrosoft","Account Microsoft 365","text","nome@azienda.onmicrosoft.com"]]},
+                
+                {icon:"📱",title:"Dati SIM / Telefono",grid:"1fr 1fr",fields:[["sim","Codice SIM","text","SIM-IT-XXX"],["numeroCellulare","Numero Cellulare","text","+39 3XX XXXXXXX"]]},
               ].map(({icon,title,grid,fields})=>(
                 <div key={title} style={{marginBottom:28}}>
-                  <div style={{fontSize:11,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,paddingBottom:8,borderBottom:"1px solid #21262d"}}>{icon} {title}</div>
+                  <div style={{fontSize:12,color:T.textSub,fontWeight:600,marginBottom:16,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>{icon} {title}</div>
                   <div style={{display:"grid",gridTemplateColumns:grid,gap:16}}>
                     {fields.map(([key,label,type,ph])=>(
                       <div key={key} className="fi">
@@ -508,18 +845,17 @@ export default function AssetManager({ onLogout }) {
                             </select>
                             {!showAddReparto ? (
                               <div style={{display:"flex",gap:6}}>
-                                <button type="button" onClick={()=>setShowAddReparto(true)} style={{background:"transparent",border:"1px dashed #30363d",borderRadius:6,color:"#8b949e",fontSize:12,padding:"5px 10px",cursor:"pointer",flex:1,fontFamily:"'IBM Plex Mono',monospace",transition:"all .15s"}}
-                                  onMouseEnter={e=>e.target.style.borderColor="#388bfd"} onMouseLeave={e=>e.target.style.borderColor="#30363d"}>
-                                  + Aggiungi nuovo reparto
+                                <button type="button" onClick={()=>setShowAddReparto(true)} style={{background:"transparent",border:`1px dashed ${T.border2}`,borderRadius:6,color:T.textSub,fontSize:12,padding:"5px 10px",cursor:"pointer",flex:1,fontFamily:"'JetBrains Mono',monospace",transition:"all .15s"}}>
+                                  + Aggiungi nuovo ruolo
                                 </button>
-                                <button type="button" onClick={()=>setShowRepartiManager(true)} style={{background:"transparent",border:"1px solid #30363d",borderRadius:6,color:"#484f58",fontSize:11,padding:"5px 9px",cursor:"pointer",fontFamily:"'IBM Plex Mono',monospace"}} title="Gestisci reparti">⚙</button>
+                                <button type="button" onClick={()=>setShowRepartiManager(true)} style={{background:"transparent",border:`1px solid ${T.border2}`,borderRadius:6,color:T.textMuted,fontSize:11,padding:"5px 9px",cursor:"pointer",fontFamily:"'JetBrains Mono',monospace"}} title="Gestisci ruoli">⚙</button>
                               </div>
                             ) : (
                               <div style={{display:"flex",gap:6}}>
-                                <input className="fi2" placeholder="Nome reparto..." value={newReparto} onChange={e=>setNewReparto(e.target.value)}
-                                  onKeyDown={e=>{if(e.key==="Enter"&&newReparto.trim()){const v=newReparto.trim();addReparto(v);setForm(f=>({...f,reparto:v}));setNewReparto("");setShowAddReparto(false);}if(e.key==="Escape"){setShowAddReparto(false);setNewReparto("");}}}
+                                <input className="fi2" placeholder="Nome ruolo..." value={newReparto} onChange={e=>setNewReparto(e.target.value)}
+                                  onKeyDown={e=>{if(e.key==="Enter"&&newReparto.trim()){const v=newReparto.trim();if(!reparti.includes(v))setReparti(p=>[...p,v]);setForm(f=>({...f,reparto:v}));setNewReparto("");setShowAddReparto(false);}if(e.key==="Escape"){setShowAddReparto(false);setNewReparto("");}}}
                                   style={{flex:1}} autoFocus/>
-                                <button type="button" className="btn btn-primary" style={{padding:"5px 10px",fontSize:12}} onClick={()=>{const v=newReparto.trim();if(v){addReparto(v);setForm(f=>({...f,reparto:v}));setNewReparto("");setShowAddReparto(false);}}}>✓</button>
+                                <button type="button" className="btn btn-primary" style={{padding:"5px 10px",fontSize:12}} onClick={()=>{const v=newReparto.trim();if(v){if(!reparti.includes(v))setReparti(p=>[...p,v]);setForm(f=>({...f,reparto:v}));setNewReparto("");setShowAddReparto(false);}}}>✓</button>
                                 <button type="button" className="btn btn-ghost" style={{padding:"5px 10px",fontSize:12}} onClick={()=>{setShowAddReparto(false);setNewReparto("");}}>✕</button>
                               </div>
                             )}
@@ -532,8 +868,35 @@ export default function AssetManager({ onLogout }) {
                   </div>
                 </div>
               ))}
+              {/* PC — sola lettura, popolato da Hardware */}
+              {(()=>{
+                const pcAssegnato = hardware.find(h=>h.tipo==="PC" && h.assegnatoA===form.nominativo);
+                return (
+                  <div style={{marginBottom:28}}>
+                    <div style={{fontSize:12,color:T.textSub,fontWeight:600,marginBottom:16,paddingBottom:8,borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span>🖥️ Dati PC</span>
+                      {!pcAssegnato&&<span style={{fontSize:11,color:T.textMuted,fontWeight:400}}>Assegna un PC dalla sezione Hardware</span>}
+                    </div>
+                    {pcAssegnato ? (
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                        {[["Seriale PC",pcAssegnato.seriale],["Modello",`${pcAssegnato.marca} ${pcAssegnato.modello}`.trim()],["Marca",pcAssegnato.marca],["Stato HW",pcAssegnato.stato]].map(([k,v])=>(
+                          <div key={k} style={{background:T.surface2,border:`1px solid ${T.border}`,borderRadius:6,padding:"10px 14px"}}>
+                            <div style={{fontSize:11,color:T.textMuted,marginBottom:4,fontWeight:500}}>{k}</div>
+                            <div style={{fontSize:13,color:T.text,fontWeight:500}}>{v||"—"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ):(
+                      <div style={{background:T.surface2,border:`1px dashed ${T.border2}`,borderRadius:8,padding:"18px 16px",textAlign:"center",color:T.textMuted,fontSize:13}}>
+                        Nessun PC assegnato — vai in <b style={{color:T.textSub}}>🖥 Hardware</b> per assegnare un PC a questo nominativo
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <div style={{marginBottom:28}}>
-                <div style={{fontSize:11,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:16,paddingBottom:8,borderBottom:"1px solid #21262d"}}>📋 Stato & Note</div>
+                <div style={{fontSize:12,color:T.textSub,fontWeight:600,marginBottom:16,paddingBottom:8,borderBottom:`1px solid ${T.border}`}}>📋 Stato & Note</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:16}}>
                   <div className="fi"><label className="fl">Stato</label>
                     <select className="fi2" value={form.stato} onChange={e=>setForm({...form,stato:e.target.value})}>{stati.map(s=><option key={s}>{s}</option>)}</select>
@@ -544,10 +907,8 @@ export default function AssetManager({ onLogout }) {
                 </div>
               </div>
               <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-                <button className="btn btn-ghost" onClick={()=>setView("table")}>Annulla</button>
-                <button className="btn btn-primary" onClick={saveForm} disabled={saving}>
-                  {saving?"Salvataggio...":"💾 "+(editId?"Salva Modifiche":"Aggiungi Asset")}
-                </button>
+                <button className="btn btn-ghost" onClick={()=>setView(prevView)}>Annulla</button>
+                <button className="btn btn-primary" onClick={saveForm}>💾 {editId?"Salva Modifiche":"Aggiungi Asset"}</button>
               </div>
             </div>
           </div>
@@ -558,7 +919,7 @@ export default function AssetManager({ onLogout }) {
           <div className="ai">
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
               <button className="btn btn-ghost" onClick={()=>setView("table")} style={{padding:"6px 12px"}}>← Indietro</button>
-              <h2 style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:18}}>{detailAsset.nominativo}</h2>
+              <h2 style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:18,color:T.text}}>{detailAsset.nominativo}</h2>
               <span className="badge" style={{background:statoColor(detailAsset.stato)+"22",color:statoColor(detailAsset.stato),border:`1px solid ${statoColor(detailAsset.stato)}44`}}>{detailAsset.stato}</span>
               <div style={{flex:1}}/>
               <button className="btn btn-accent" onClick={()=>openEdit(detailAsset)}>✏️ Modifica</button>
@@ -566,47 +927,44 @@ export default function AssetManager({ onLogout }) {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,maxWidth:900,marginBottom:24}}>
               {[
-                {icon:"👤",title:"Dipendente",rows:[["Nominativo",detailAsset.nominativo],["Email",detailAsset.email],["Reparto",detailAsset.reparto],["Account M365",detailAsset.accountMicrosoft]]},
+                {icon:"👤",title:"Dipendente",rows:[["Nominativo",detailAsset.nominativo],["Email",detailAsset.email],["Ruolo",detailAsset.reparto],["Account M365",detailAsset.accountMicrosoft]]},
                 {icon:"🖥️",title:"PC",rows:[["Seriale",detailAsset.serialePC],["Modello",detailAsset.modelloPC],["Data Acquisto",fmtDate(detailAsset.dataAcquisto)],["Data Consegna",fmtDate(detailAsset.dataConsegna)]]},
                 {icon:"📱",title:"SIM / Telefono",rows:[["Codice SIM",detailAsset.sim],["Numero",detailAsset.numeroCellulare],["Note",detailAsset.note||"—"]]},
               ].map(({icon,title,rows})=>(
-                <div key={title} style={{background:"#161b22",border:"1px solid #21262d",borderRadius:10,padding:20}}>
-                  <div style={{fontSize:11,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:14}}>{icon} {title}</div>
+                <div key={title} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:20}}>
+                  <div style={{fontSize:13,color:T.text,fontWeight:600,marginBottom:14}}>{icon} {title}</div>
                   {rows.map(([k,v])=>(
                     <div key={k} style={{marginBottom:12}}>
-                      <div style={{fontSize:10,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>{k}</div>
-                      <div style={{fontSize:13,color:(!v||v==="—")?"#484f58":"#e6edf3",wordBreak:"break-all"}}>{v||"—"}</div>
+                      <div style={{fontSize:12,color:T.textSub,fontWeight:500,marginBottom:4}}>{k}</div>
+                      <div style={{fontSize:14,color:(!v||v==="—")?T.textMuted:T.text,wordBreak:"break-all"}}>{v||"—"}</div>
                     </div>
                   ))}
                 </div>
               ))}
             </div>
             {(()=>{
-              const ah=history.filter(h=>h.asset_id===detailAsset.id);
+              const ah=history.filter(h=>h.assetId===detailAsset.id);
               if(!ah.length) return null;
               return (
                 <div style={{maxWidth:900}}>
-                  <div style={{fontSize:11,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>🕓 Storico di questo asset</div>
-                  <div style={{background:"#161b22",border:"1px solid #21262d",borderRadius:10,overflow:"hidden"}}>
-                    {ah.map((h,i)=>{
-                      const changes = h.changes ? (typeof h.changes==="string" ? JSON.parse(h.changes) : h.changes) : null;
-                      return (
-                        <div key={h.id} style={{padding:"12px 16px",borderBottom:i<ah.length-1?"1px solid #21262d":"none"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:changes?.length?8:0}}>
-                            <ActionBadge action={h.action}/>
-                            <span style={{fontSize:12,color:"#8b949e"}}>{fmtTs(h.ts)}</span>
-                          </div>
-                          {changes?.map((c,ci)=>(
-                            <div key={ci} style={{marginTop:4,fontSize:12,color:"#8b949e",paddingLeft:8}}>
-                              <span style={{color:"#484f58"}}>{c.field}: </span>
-                              <span style={{color:"#ef4444"}}>{c.from||"(vuoto)"}</span>
-                              <span style={{color:"#484f58"}}> → </span>
-                              <span style={{color:"#22c55e"}}>{c.to||"(vuoto)"}</span>
-                            </div>
-                          ))}
+                  <div style={{fontSize:12,color:T.textSub,fontWeight:600,marginBottom:12}}>🕓 Storico di questo asset</div>
+                  <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                    {ah.map((h,i)=>(
+                      <div key={h.id} style={{padding:"12px 16px",borderBottom:i<ah.length-1?`1px solid ${T.border}`:"none"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:h.changes?.length?8:0}}>
+                          <ActionBadge action={h.action}/>
+                          <span style={{fontSize:12,color:T.textSub}}>{fmtTs(h.ts)}</span>
                         </div>
-                      );
-                    })}
+                        {h.changes?.map((c,ci)=>(
+                          <div key={ci} style={{marginTop:4,fontSize:12,color:T.textSub,paddingLeft:8}}>
+                            <span style={{color:T.textMuted}}>{c.field}: </span>
+                            <span style={{color:"#ef4444"}}>{c.from||"(vuoto)"}</span>
+                            <span style={{color:T.textMuted}}> → </span>
+                            <span style={{color:"#22c55e"}}>{c.to||"(vuoto)"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -615,40 +973,147 @@ export default function AssetManager({ onLogout }) {
         )}
 
         {/* ══ HISTORY ══ */}
+        {/* ══ HARDWARE ══ */}
+        {view==="hardware"&&(
+          <div className="ai">
+            {hwView==="table" ? (
+              <div>
+                <div style={{display:"flex",gap:10,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
+                  <input className="fi2" placeholder="🔍  Cerca tipo, marca, modello, seriale..." value={hwSearch} onChange={e=>setHwSearch(e.target.value)} style={{flex:1,minWidth:220}}/>
+                  {hwSearch&&<button className="btn btn-ghost" onClick={()=>setHwSearch("")}>✕ Reset</button>}
+                  <div style={{marginLeft:"auto",display:"flex",gap:8,fontSize:12,color:T.textSub,alignItems:"center"}}>
+                    <span>🖥 <b style={{color:T.text}}>{hardware.length}</b> totali</span>
+                    <span>✅ <b style={{color:"#22c55e"}}>{hardware.filter(h=>h.stato==="In uso").length}</b> in uso</span>
+                    <span>📦 <b style={{color:"#58a6ff"}}>{hardware.filter(h=>h.stato==="Disponibile").length}</b> disponibili</span>
+                  </div>
+                  <button className="btn btn-primary" onClick={()=>{setHwForm(emptyHwForm);setHwEditId(null);setHwView("form");}}>+ Aggiungi</button>
+                </div>
+                <div style={{background:T.surface,borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{overflowX:"auto"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                      <thead>
+                        <tr style={{background:T.surface2,borderBottom:`1px solid ${T.border}`}}>
+                          {[["tipo","Tipo"],["marca","Marca"],["modello","Modello"],["seriale","Seriale"],["stato","Stato"],["assegnatoA","Assegnato a"],["note","Note"]].map(([f,l])=>(
+                            <th key={f} onClick={()=>hwSortBy(f)} className="th" style={{padding:"10px 14px",textAlign:"left",color:T.textSub,fontWeight:500,fontSize:11,textTransform:"uppercase",letterSpacing:"0.07em"}}>
+                              {l}<span style={{opacity:hwSortField===f?1:0.3,marginLeft:4,fontSize:10}}>{hwSortField===f&&hwSortDir==="desc"?"▼":"▲"}</span>
+                            </th>
+                          ))}
+                          <th style={{padding:"10px 14px",color:T.textSub,fontSize:11,textTransform:"uppercase"}}>Azioni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hwFiltered.length===0?(
+                          <tr><td colSpan={8} style={{padding:"48px 0",textAlign:"center",color:T.textMuted}}>Nessun hardware trovato</td></tr>
+                        ):hwFiltered.map((h,i)=>{
+                          const tipoIcon = {"PC":"🖥","Monitor":"🖥","Telefono":"📱","SIM":"📡","Cuffie":"🎧","Altro":"📦"}[h.tipo]||"📦";
+                          const statoC = {"In uso":"#22c55e","Disponibile":"#1f6feb","In manutenzione":"#f59e0b","Dismesso":"#ef4444"}[h.stato]||"#888";
+                          return (
+                            <tr key={h.id} className="rh" style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"transparent":T.surface2}}>
+                              <td style={{padding:"11px 14px"}}><span style={{fontWeight:500,color:T.text}}>{tipoIcon} {h.tipo}</span></td>
+                              <td style={{padding:"11px 14px",color:T.text}}>{h.marca||"—"}</td>
+                              <td style={{padding:"11px 14px",color:T.textSub,fontSize:12}}>{h.modello||"—"}</td>
+                              <td style={{padding:"11px 14px",fontWeight:500,color:T.link,fontSize:12}}>{h.seriale||"—"}</td>
+                              <td style={{padding:"11px 14px"}}><span className="badge" style={{background:statoC+"22",color:statoC,border:`1px solid ${statoC}44`}}>{h.stato}</span></td>
+                              <td style={{padding:"11px 14px",color:T.textSub,fontSize:12}}>{h.assegnatoA||"—"}</td>
+                              <td style={{padding:"11px 14px",color:T.textMuted,fontSize:12,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.note||"—"}</td>
+                              <td style={{padding:"11px 14px"}}>
+                                <div style={{display:"flex",gap:6}}>
+                                  <button className="btn btn-accent" onClick={()=>{setHwForm({...h});setHwEditId(h.id);setHwView("form");}} style={{padding:"5px 10px",fontSize:12}}>✏️</button>
+                                  <button className="btn btn-danger" onClick={()=>setHwDeleteConfirm(h.id)} style={{padding:"5px 10px",fontSize:12}}>🗑</button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{padding:"10px 16px",borderTop:`1px solid ${T.border}`,fontSize:12,color:T.textSub}}>
+                    {hwFiltered.length} di {hardware.length} record
+                  </div>
+                </div>
+              </div>
+            ):(
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+                  <button className="btn btn-ghost" onClick={()=>{setHwView("table");setHwEditId(null);setHwForm(emptyHwForm);}} style={{padding:"6px 12px"}}>← Indietro</button>
+                  <h2 style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:18,color:T.text}}>{hwEditId?"Modifica Hardware":"Nuovo Hardware"}</h2>
+                </div>
+                <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:28,maxWidth:700}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+                    {[["tipo","Tipo *","select"],["marca","Marca","text"],["modello","Modello","text"],["seriale","Seriale *","text"],["stato","Stato","select2"],["assegnatoA","Assegnato a","select3"]].map(([key,label,type])=>(
+                      <div key={key} className="fi">
+                        <label className="fl">{label}</label>
+                        {type==="select"?(
+                          <select className="fi2" value={hwForm[key]} onChange={e=>setHwForm({...hwForm,[key]:e.target.value})}>
+                            <option value="">— Seleziona —</option>
+                            {HW_TIPI.map(t=><option key={t}>{t}</option>)}
+                          </select>
+                        ):type==="select2"?(
+                          <select className="fi2" value={hwForm[key]} onChange={e=>setHwForm({...hwForm,[key]:e.target.value})}>
+                            {HW_STATI.map(s=><option key={s}>{s}</option>)}
+                          </select>
+                        ):type==="select3"?(
+                          <select className="fi2" value={hwForm[key]} onChange={e=>{
+                            const nome=e.target.value;
+                            setHwForm(prev=>({...prev,[key]:nome, stato: nome?"In uso":(prev.stato==="In uso"?"Disponibile":prev.stato)}));
+                          }}>
+                            <option value="">— Nessuno —</option>
+                            {[...assets].sort((a,b)=>a.nominativo.localeCompare(b.nominativo)).map(a=>(
+                              <option key={a.id} value={a.nominativo}>{a.nominativo}</option>
+                            ))}
+                          </select>
+                        ):(
+                          <input className="fi2" type="text" placeholder={label} value={hwForm[key]} onChange={e=>setHwForm({...hwForm,[key]:e.target.value})}/>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="fi" style={{marginBottom:24}}>
+                    <label className="fl">Note</label>
+                    <textarea className="fi2" rows={2} placeholder="Note aggiuntive..." value={hwForm.note} onChange={e=>setHwForm({...hwForm,note:e.target.value})} style={{resize:"vertical"}}/>
+                  </div>
+                  <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+                    <button className="btn btn-ghost" onClick={()=>{setHwView("table");setHwEditId(null);setHwForm(emptyHwForm);}}>Annulla</button>
+                    <button className="btn btn-primary" onClick={saveHwForm}>💾 {hwEditId?"Salva Modifiche":"Aggiungi Hardware"}</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {view==="history"&&(
           <div className="ai">
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20,flexWrap:"wrap"}}>
-              <h2 style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:18}}>🕓 Storico Modifiche</h2>
-              <span style={{fontSize:12,color:"#8b949e"}}>{history.length} eventi</span>
+              <h2 style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:18,color:T.text}}>🕓 Storico Modifiche</h2>
+              <span style={{fontSize:12,color:T.textSub}}>{history.length} eventi</span>
               <div style={{flex:1}}/>
               <input className="fi2" placeholder="Filtra per nome, seriale, azione..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)} style={{width:310}}/>
             </div>
-            <div style={{background:"#161b22",border:"1px solid #21262d",borderRadius:10,overflow:"hidden"}}>
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
               {filteredH.length===0?(
-                <div style={{padding:"48px 0",textAlign:"center",color:"#484f58"}}>Nessun evento trovato</div>
-              ):filteredH.map((h,i)=>{
-                const changes = h.changes ? (typeof h.changes==="string" ? JSON.parse(h.changes) : h.changes) : null;
-                return (
-                  <div key={h.id} className="rh" style={{padding:"14px 20px",borderBottom:i<filteredH.length-1?"1px solid #21262d":"none",display:"flex",gap:16,alignItems:"flex-start"}}>
-                    <div style={{minWidth:160,paddingTop:1}}><ActionBadge action={h.action}/></div>
-                    <div style={{flex:1}}>
-                      <div style={{display:"flex",gap:8,alignItems:"baseline",marginBottom:changes?.length?6:0}}>
-                        <span style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:500,fontSize:13}}>{h.asset_nome||"—"}</span>
-                        {h.asset_serial&&<span style={{fontSize:12,color:"#58a6ff"}}>{h.asset_serial}</span>}
-                      </div>
-                      {changes?.map((c,ci)=>(
-                        <div key={ci} style={{fontSize:12,color:"#8b949e",marginTop:3}}>
-                          <span style={{color:"#484f58"}}>{c.field}: </span>
-                          <span style={{color:"#ef4444"}}>{String(c.from)||"(vuoto)"}</span>
-                          <span style={{color:"#484f58"}}> → </span>
-                          <span style={{color:"#22c55e"}}>{String(c.to)||"(vuoto)"}</span>
-                        </div>
-                      ))}
+                <div style={{padding:"48px 0",textAlign:"center",color:T.textMuted}}>Nessun evento trovato</div>
+              ):filteredH.map((h,i)=>(
+                <div key={h.id} className="rh" style={{padding:"14px 20px",borderBottom:i<filteredH.length-1?`1px solid ${T.border}`:"none",display:"flex",gap:16,alignItems:"flex-start"}}>
+                  <div style={{minWidth:160,paddingTop:1}}><ActionBadge action={h.action}/></div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",gap:8,alignItems:"baseline",marginBottom:h.changes?.length?6:0}}>
+                      <span style={{fontFamily:"'Inter',sans-serif",fontWeight:500,fontSize:13,color:T.text}}>{h.assetNome||"—"}</span>
+                      {h.assetSerial&&<span style={{fontSize:12,color:T.link}}>{h.assetSerial}</span>}
                     </div>
-                    <div style={{fontSize:12,color:"#484f58",whiteSpace:"nowrap",paddingTop:2}}>{fmtTs(h.ts)}</div>
+                    {h.changes?.map((c,ci)=>(
+                      <div key={ci} style={{fontSize:12,color:T.textSub,marginTop:3}}>
+                        <span style={{color:T.textMuted}}>{c.field}: </span>
+                        <span style={{color:"#ef4444"}}>{String(c.from)||"(vuoto)"}</span>
+                        <span style={{color:T.textMuted}}> → </span>
+                        <span style={{color:"#22c55e"}}>{String(c.to)||"(vuoto)"}</span>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+                  <div style={{fontSize:12,color:T.textMuted,whiteSpace:"nowrap",paddingTop:2}}>{fmtTs(h.ts)}</div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -657,14 +1122,15 @@ export default function AssetManager({ onLogout }) {
         {view==="import"&&(
           <div className="ai" style={{maxWidth:820}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
-              <h2 style={{fontFamily:"'IBM Plex Sans',sans-serif",fontWeight:600,fontSize:18}}>⬆ Importazione Massiva</h2>
+              <h2 style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:18,color:T.text}}>⬆ Importazione da Excel</h2>
             </div>
-            <div style={{background:"#161b22",border:"1px solid #21262d",borderRadius:10,padding:20,marginBottom:20}}>
-              <div style={{fontSize:11,color:"#484f58",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>📋 Come funziona</div>
-              <div style={{fontSize:13,color:"#8b949e",lineHeight:1.85}}>
-                1. Scarica il{" "}<button className="btn btn-ghost" onClick={dlTemplate} style={{padding:"2px 10px",fontSize:12,display:"inline-flex",verticalAlign:"middle"}}>template CSV ⬇</button>{" "}e compilalo con i tuoi dati.<br/>
-                2. Le colonne <span style={{color:"#58a6ff"}}>Nominativo</span> e <span style={{color:"#58a6ff"}}>Seriale PC</span> sono obbligatorie.<br/>
-                3. Scegli la modalità e carica il file — vedrai un'anteprima prima di confermare.
+            <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:20,marginBottom:20}}>
+              <div style={{fontSize:12,color:T.textSub,fontWeight:600,marginBottom:12}}>📋 Come funziona</div>
+              <div style={{fontSize:13,color:T.textSub,lineHeight:1.85}}>
+                1. Scarica il{" "}<button className="btn btn-ghost" onClick={dlTemplate} style={{padding:"2px 10px",fontSize:12,display:"inline-flex",verticalAlign:"middle"}}>template Excel ⬇</button>{" "}e compilalo direttamente in Excel.<br/>
+                2. Le colonne <span style={{color:T.link}}>Nominativo</span> e <span style={{color:T.link}}>Seriale PC</span> sono obbligatorie — le altre sono facoltative.<br/>
+                3. Per lo stato usa: <span style={{color:T.text}}>Attivo · In manutenzione · Dismesso · Smarrito</span> (default: Attivo).<br/>
+                4. Salva il file come <b style={{color:T.text}}>.xlsx</b> e caricalo — vedrai un'anteprima prima di confermare.
               </div>
             </div>
             <div style={{display:"flex",gap:10,marginBottom:16}}>
@@ -676,48 +1142,49 @@ export default function AssetManager({ onLogout }) {
             {!importData?(
               <div className="dz" onClick={()=>fileRef.current.click()}>
                 <div style={{fontSize:40,marginBottom:12}}>📂</div>
-                <div style={{fontFamily:"'IBM Plex Sans',sans-serif",fontSize:15,marginBottom:6}}>Clicca per selezionare il file CSV</div>
-                <div style={{fontSize:12,color:"#484f58"}}>Formato supportato: .csv (UTF-8)</div>
-                <input ref={fileRef} type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={handleFile}/>
+                <div style={{fontFamily:"'Inter',sans-serif",fontSize:15,marginBottom:6,color:T.text}}>Clicca per selezionare il file Excel</div>
+                <div style={{fontSize:12,color:T.textMuted}}>Formati supportati: <b>.xlsx</b> · .xls · .ods</div>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{display:"none"}} onChange={handleFile}/>
               </div>
             ):(
               <div>
                 {importData.errors.length>0&&(
                   <div style={{background:"#da363322",border:"1px solid #da363344",borderRadius:8,padding:"12px 16px",marginBottom:16}}>
                     <div style={{fontSize:12,color:"#f85149",marginBottom:6,fontWeight:500}}>⚠ {importData.errors.length} errore/i — righe saltate</div>
-                    {importData.errors.slice(0,5).map((e,i)=><div key={i} style={{fontSize:12,color:"#8b949e"}}>{e}</div>)}
+                    {importData.errors.slice(0,6).map((e,i)=><div key={i} style={{fontSize:12,color:T.textSub}}>{e}</div>)}
                   </div>
                 )}
-                <div style={{background:"#161b22",border:"1px solid #21262d",borderRadius:10,overflow:"hidden",marginBottom:16}}>
-                  <div style={{padding:"10px 16px",borderBottom:"1px solid #21262d",fontSize:12,color:"#22c55e",fontWeight:600}}>✓ {importData.records.length} record pronti per l'importazione</div>
+                <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden",marginBottom:16}}>
+                  <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,fontSize:12,display:"flex",alignItems:"center",gap:12}}>
+                    <span style={{color:"#22c55e",fontWeight:600}}>✓ {importData.records.length} record pronti per l'importazione</span>
+
+                  </div>
                   <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <thead><tr style={{background:"#0d1117"}}>
-                        {["Nominativo","Reparto","Seriale PC","Modello","Cellulare","Stato"].map(h=>(
-                          <th key={h} style={{padding:"8px 12px",textAlign:"left",color:"#8b949e",fontWeight:500,fontSize:11,textTransform:"uppercase"}}>{h}</th>
+                      <thead><tr style={{background:T.surface2}}>
+                        {["Nominativo","Ruolo","Seriale PC","Modello","Cellulare","Stato"].map(h=>(
+                          <th key={h} style={{padding:"8px 12px",textAlign:"left",color:T.textSub,fontWeight:500,fontSize:11,textTransform:"uppercase"}}>{h}</th>
                         ))}
                       </tr></thead>
                       <tbody>
                         {importData.records.slice(0,8).map((r,i)=>(
-                          <tr key={i} style={{borderTop:"1px solid #21262d"}}>
-                            <td style={{padding:"8px 12px"}}>{r.nominativo}</td>
+                          <tr key={i} style={{borderTop:`1px solid ${T.border}`}}>
+                            <td style={{padding:"8px 12px",color:T.text}}>{r.nominativo}</td>
                             <td style={{padding:"8px 12px"}}><span className="tag">{r.reparto||"—"}</span></td>
-                            <td style={{padding:"8px 12px",color:"#58a6ff"}}>{r.serialePC}</td>
-                            <td style={{padding:"8px 12px",color:"#8b949e"}}>{r.modelloPC||"—"}</td>
-                            <td style={{padding:"8px 12px",color:"#8b949e"}}>{r.numeroCellulare||"—"}</td>
+                            <td style={{padding:"8px 12px",color:T.link}}>{r.serialePC}</td>
+                            <td style={{padding:"8px 12px",color:T.textSub}}>{r.modelloPC||"—"}</td>
+                            <td style={{padding:"8px 12px",color:T.textSub}}>{r.numeroCellulare||"—"}</td>
                             <td style={{padding:"8px 12px"}}><span className="badge" style={{background:statoColor(r.stato)+"22",color:statoColor(r.stato),border:`1px solid ${statoColor(r.stato)}44`}}>{r.stato}</span></td>
                           </tr>
                         ))}
-                        {importData.records.length>8&&<tr><td colSpan={6} style={{padding:"8px 12px",textAlign:"center",color:"#484f58",fontSize:11}}>...e altri {importData.records.length-8}</td></tr>}
+                        {importData.records.length>8&&<tr><td colSpan={6} style={{padding:"8px 12px",textAlign:"center",color:T.textMuted,fontSize:11}}>...e altri {importData.records.length-8}</td></tr>}
                       </tbody>
                     </table>
                   </div>
                 </div>
                 <div style={{display:"flex",gap:10}}>
                   <button className="btn btn-ghost" onClick={()=>setImportData(null)}>← Cambia file</button>
-                  <button className="btn btn-primary" onClick={confirmImport} disabled={saving||!importData.records.length}>
-                    {saving?"Importazione...":"✓ Conferma importazione ("+importData.records.length+")"}
-                  </button>
+                  <button className="btn btn-primary" onClick={confirmImport} disabled={!importData.records.length}>✓ Conferma importazione ({importData.records.length})</button>
                 </div>
               </div>
             )}
