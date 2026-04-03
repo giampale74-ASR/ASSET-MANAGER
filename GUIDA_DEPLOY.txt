@@ -1,0 +1,144 @@
+# 🚀 GUIDA COMPLETA — Deploy AssetManager su Netlify
+# Tempo stimato: 20-30 minuti, nessuna esperienza tecnica richiesta
+
+═══════════════════════════════════════════════════
+ FASE 1 — SUPABASE (il database online, gratuito)
+═══════════════════════════════════════════════════
+
+1. Vai su https://supabase.com e clicca "Start your project"
+2. Registrati con Google o email
+3. Clicca "New Project"
+   - Nome: AssetManager
+   - Password database: inventala e salvala da qualche parte
+   - Region: West EU (Ireland) — più vicina all'Italia
+   - Clicca "Create new project" e aspetta ~2 minuti
+
+4. Crea le tabelle del database:
+   - Nel menu a sinistra clicca "SQL Editor"
+   - Clicca "New query"
+   - Apri il file  supabase_schema.sql  (incluso in questa cartella)
+   - Copia tutto il contenuto e incollalo nell'editor
+   - Clicca "Run" (▶)
+   - Dovresti vedere "Success. No rows returned"
+
+5. Copia le tue credenziali:
+   - Nel menu a sinistra clicca "Project Settings" (icona ingranaggio)
+   - Clicca "API"
+   - Copia e salva questi due valori:
+     ✦ Project URL  →  es. https://abcdefgh.supabase.co
+     ✦ anon / public key  →  una stringa lunga che inizia con eyJ...
+
+
+═══════════════════════════════════════════════════
+ FASE 2 — GITHUB (dove carichi il codice)
+═══════════════════════════════════════════════════
+
+6. Vai su https://github.com e registrati (se non hai un account)
+
+7. Crea un nuovo repository:
+   - Clicca il "+" in alto a destra → "New repository"
+   - Nome: asset-manager
+   - Visibilità: Private ✅  (nessuno potrà vedere il codice)
+   - Clicca "Create repository"
+
+8. Carica i file del progetto:
+   - Nella pagina del repository, clicca "uploading an existing file"
+   - Trascina TUTTA la cartella  assetmanager  (questa cartella)
+     oppure seleziona tutti i file al suo interno
+   - Scrivi un messaggio tipo "Prima versione"
+   - Clicca "Commit changes"
+
+   ⚠️  IMPORTANTE: NON caricare il file .env o .env.local
+       (il .gitignore lo esclude automaticamente)
+
+
+═══════════════════════════════════════════════════
+ FASE 3 — NETLIFY (pubblicazione online)
+═══════════════════════════════════════════════════
+
+9. Vai su https://netlify.com e clicca "Sign up"
+   - Registrati con GitHub (più comodo)
+
+10. Importa il progetto:
+    - Clicca "Add new site" → "Import an existing project"
+    - Scegli "GitHub"
+    - Autorizza Netlify ad accedere a GitHub
+    - Seleziona il repository  asset-manager
+    - Lascia le impostazioni di default (Netlify le legge da netlify.toml)
+    - Clicca "Deploy site"
+
+11. Aggiungi le variabili d'ambiente (FONDAMENTALE):
+    - Nel pannello Netlify del tuo sito, vai su:
+      Site configuration → Environment variables
+    - Aggiungi queste 3 variabili (clicca "Add variable" per ognuna):
+
+      NOME VARIABILE              VALORE
+      ─────────────────────────────────────────────────────
+      VITE_SUPABASE_URL           https://xxxxx.supabase.co
+      VITE_SUPABASE_ANON_KEY      eyJhbGciOiJ...
+      VITE_APP_PASSWORD           la-tua-password-scelta
+      ─────────────────────────────────────────────────────
+
+    - Clicca "Save"
+
+12. Forza un nuovo deploy per applicare le variabili:
+    - Vai su "Deploys" → clicca "Trigger deploy" → "Deploy site"
+    - Aspetta ~1 minuto
+
+13. Apri il tuo sito:
+    - Netlify ti assegna un URL tipo:  https://amazing-name-123.netlify.app
+    - Puoi personalizzarlo in "Domain settings" → "Options" → "Edit site name"
+    - Es: https://assetmanager-tuaazienda.netlify.app
+
+
+═══════════════════════════════════════════════════
+ FASE 4 — CONDIVIDI CON I COLLEGHI
+═══════════════════════════════════════════════════
+
+14. Manda ai colleghi:
+    - URL del sito (es. https://assetmanager-tuaazienda.netlify.app)
+    - La password che hai impostato in VITE_APP_PASSWORD
+
+    ✅ Tutti vedono gli stessi dati in tempo reale
+    ✅ Ogni modifica è registrata nello storico
+    ✅ Il sito è HTTPS — connessione cifrata
+    ✅ Nessuno esterno può accedere senza password
+
+
+═══════════════════════════════════════════════════
+ AGGIORNAMENTI FUTURI
+═══════════════════════════════════════════════════
+
+Per aggiornare l'app in futuro:
+- Modifica i file sul repository GitHub
+- Netlify rileva automaticamente le modifiche e fa il deploy
+
+Per cambiare la password:
+- Vai su Netlify → Environment variables
+- Modifica VITE_APP_PASSWORD
+- Trigghera un nuovo deploy
+
+
+═══════════════════════════════════════════════════
+ COSTI
+═══════════════════════════════════════════════════
+
+Supabase Free:  500MB database, 50.000 righe, illimitato per uso interno
+Netlify Free:   100GB banda/mese, deploy illimitati
+GitHub Free:    repository privati illimitati
+
+Totale: 0€ 🎉
+
+
+═══════════════════════════════════════════════════
+ HAI PROBLEMI?
+═══════════════════════════════════════════════════
+
+Errore "Failed to load data":
+→ Controlla che VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY siano corretti
+
+Pagina bianca dopo il login:
+→ Vai su Netlify → Deploys → clicca sull'ultimo deploy → guarda i log
+
+Il sito non si aggiorna dopo modifiche GitHub:
+→ Netlify → Deploys → "Trigger deploy"
