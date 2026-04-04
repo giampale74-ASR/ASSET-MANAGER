@@ -236,7 +236,32 @@ export default function AssetManager() {
   const openEdit   = (a) => { setForm({...a}); setEditId(a.id); setPrevView(view); setView("form"); };
   const openDetail = (a) => { setDetailId(a.id); setView("detail"); };
   const sortBy     = (f) => { if(sortField===f) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortField(f);setSortDir("asc");} };
+  const addHistory = async (action, asset, changes) => {
+  try {
+    const formattedChanges = changes
+      ? Object.keys(changes).map((key) => ({
+          field: key,
+          from: changes[key].before,
+          to: changes[key].after,
+        }))
+      : null;
 
+    const { error } = await supabase.from("history").insert({
+      ts: Date.now(),
+      action: action,
+      asset_id: asset.id,
+      asset_serial: asset.serialePC,
+      asset_nome: asset.nominativo,
+      changes: formattedChanges,
+    });
+
+    if (error) {
+      console.error("Errore history:", error);
+    }
+  } catch (err) {
+    console.error("Errore generale history:", err);
+  }
+};
   const saveForm = async () => {
     if (!form.nominativo) { showToast("Nominativo obbligatorio","error"); return; }
 const clean = (v) => v === "" ? null : v;
