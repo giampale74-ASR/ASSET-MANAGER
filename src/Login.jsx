@@ -24,7 +24,7 @@ export default function Login({ onLogin }) {
           <div style={{marginBottom:16}}>
             <label style={{fontSize:11,color:'#8892a8',textTransform:'uppercase',letterSpacing:'.08em',display:'block',marginBottom:6,fontWeight:500}}>Password</label>
             <input type="password" value={pwd} onChange={e=>{setPwd(e.target.value);setError(false)}} placeholder="••••••••" autoFocus
-              style={{width:'100%',background:'#0a0c10',border:`1.5px solid ${error?'#e03131':'#1e2330'}`,borderRadius:12,color:'#edf0f7',fontSize:16,padding:'12px 16px',letterSpacing:'0.15em',transition:'all .15s'}}/>
+              style={{width:'91%',background:'#0a0c10',border:`1.5px solid ${error?'#e03131':'#1e2330'}`,borderRadius:12,color:'#edf0f7',fontSize:16,padding:'12px 16px',letterSpacing:'0.15em',transition:'all .15s'}}/>
             {error&&<div style={{color:'#f87171',fontSize:12,marginTop:6}}>Password errata. Riprova.</div>}
           </div>
           <button type="submit" disabled={!pwd||loading}
