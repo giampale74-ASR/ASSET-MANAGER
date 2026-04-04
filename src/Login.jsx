@@ -17,7 +17,7 @@ export default function Login({ onLogin }) {
       <div style={{background:'#13161e',border:'1px solid #1e2330',borderRadius:20,padding:'48px 40px',width:380,animation:'fadeIn .35s ease',boxShadow:'0 24px 64px rgba(0,0,0,.6)'}}>
         <div style={{textAlign:'center',marginBottom:36}}>
           <div style={{background:'#4f6ef7',borderRadius:16,width:52,height:52,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,margin:'0 auto 16px'}}>🖥️</div>
-          <div style={{fontWeight:700,fontSize:20,color:'#edf0f7',letterSpacing:'-0.02em'}}>AssetManager</div>
+          <div style={{fontWeight:700,fontSize:20,color:'#edf0f7',letterSpacing:'-0.02em'}}>Hili Asset Manager</div>
           <div style={{fontSize:12,color:'#424d60',marginTop:4,textTransform:'uppercase',letterSpacing:'0.08em'}}>Accesso riservato</div>
         </div>
         <form onSubmit={handleSubmit} style={{animation:error?'shake .4s ease':'none'}}>
