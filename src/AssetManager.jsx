@@ -236,7 +236,10 @@ export default function AssetManager() {
   const openEdit   = (a) => { setForm({...a}); setEditId(a.id); setPrevView(view); setView("form"); };
   const openDetail = (a) => { setDetailId(a.id); setView("detail"); };
   const sortBy     = (f) => { if(sortField===f) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortField(f);setSortDir("asc");} };
-  const addHistory = async (action, asset, changes) => {
+  
+  const saveForm = async () => {
+    if (!form.nominativo) { showToast("Nominativo obbligatorio","error"); return; }
+    const addHistory = async (action, asset, changes) => {
   try {
     const formattedChanges = changes
       ? Object.keys(changes).map((key) => ({
@@ -262,8 +265,6 @@ export default function AssetManager() {
     console.error("Errore generale history:", err);
   }
 };
-  const saveForm = async () => {
-    if (!form.nominativo) { showToast("Nominativo obbligatorio","error"); return; }
 const clean = (v) => v === "" ? null : v;
 
 const payload = {
