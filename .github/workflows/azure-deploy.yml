@@ -15,11 +15,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install and Build frontend only
+      - name: Build frontend
         run: |
-          npm install
+          npm install --ignore-scripts
           npm run build
-          rm -rf node_modules
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v2
