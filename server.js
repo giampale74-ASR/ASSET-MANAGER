@@ -1,6 +1,5 @@
 const express = require('express');
-const path = require('path');
-const db = require('./db/database');
+const { db, initDB } = require('./db/database');
 
 const app = express();
 app.use(express.json());
@@ -171,4 +170,4 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`✅ AssetManager in ascolto sulla porta ${PORT}`));
+initDB().then(() => { app.listen(PORT, () => console.log(`✅ AssetManager in ascolto sulla porta ${PORT}`)); }).catch(err => { console.error(err); process.exit(1); });
