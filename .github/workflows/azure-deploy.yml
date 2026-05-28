@@ -15,10 +15,13 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install all dependencies and build
+      - name: Install and Build
         run: |
           npm install
           npm run build
+
+      - name: Remove oryx manifest
+        run: rm -f oryx-manifest.toml node_modules.tar.gz
 
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v2
