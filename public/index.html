@@ -192,6 +192,18 @@ td{padding:7px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;ma
   </div>
 </div>
 
+<div id="modal-delete-user" class="overlay" style="display:none">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:36px;margin-bottom:12px">⚠️</div>
+    <div style="font-weight:600;font-size:15px;margin-bottom:8px">Eliminare questo utente?</div>
+    <div style="color:var(--text-sub);font-size:13px;margin-bottom:24px">Operazione non reversibile.</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn btn-ghost" onclick="closeModal('modal-delete-user')">Annulla</button>
+      <button class="btn btn-danger" id="modal-delete-user-confirm">Elimina</button>
+    </div>
+  </div>
+</div>
+
 <!-- MAIN APP -->
 <div id="app" style="display:none">
   <div id="header">
@@ -201,6 +213,7 @@ td{padding:7px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;ma
       <button class="ntab"     data-view="hardware" onclick="switchView('hardware')">🖥 Hardware</button>
       <button class="ntab"     data-view="history"  onclick="switchView('history')">🕓 Storico</button>
       <button class="ntab"     data-view="import"   onclick="switchView('import')">⬆ Importa</button>
+      <button class="ntab"     data-view="users"    onclick="switchView('users')" id="tab-users" style="display:none">👥 Utenti</button>
     </div>
     <div style="flex:1"></div>
     <div style="display:flex;gap:14px;font-size:12px;color:var(--text-sub)" id="header-stats"></div>
@@ -232,6 +245,8 @@ let STATE = {
   checks:       {},       // key -> bool
   checkLabels:  ['Email','HSW','Talkdesk','Opzione'],
   // ui
+  users:        [],
+  currentUser:  null,
   view:         'table',  // table | form | detail | hardware | history | import
   prevView:     'table',
   editId:       null,
@@ -375,13 +390,14 @@ document.getElementById('lp').addEventListener('keydown', e => { if(e.key==='Ent
 // ════════════════════════════════════════════════
 async function loadAll() {
   try {
-    const [a,h,hi,r,c,l] = await Promise.all([
+    const [a,h,hi,r,c,l,me] = await Promise.all([
       GET('/api/assets'),
       GET('/api/hardware'),
       GET('/api/history'),
       GET('/api/reparti'),
       GET('/api/checks'),
       GET('/api/check-labels'),
+      GET('/api/me'),
     ]);
     STATE.assets   = a  || [];
     STATE.hardware = h  || [];
@@ -393,6 +409,13 @@ async function loadAll() {
     STATE.checks = chMap;
     const lbs = (l||[]).sort((a,b)=>a.idx-b.idx);
     if (lbs.length===4) STATE.checkLabels = lbs.map(x=>x.label);
+    STATE.currentUser = me || {};
+    const usersTab = document.getElementById('tab-users');
+    if (usersTab) usersTab.style.display = STATE.currentUser?.ruolo==='admin' ? '' : 'none';
+    if (STATE.currentUser?.ruolo==='admin') {
+      const u = await GET('/api/users');
+      STATE.users = u || [];
+    }
     render();
   } catch(e) { showToast('Errore caricamento: '+e.message,'error'); }
 }
@@ -441,6 +464,7 @@ function render() {
     case 'hardware': renderHardware(content);break;
     case 'history':  renderHistory(content);break;
     case 'import':   renderImport(content); break;
+    case 'users':    renderUsers(content);  break;
   }
 }
 function updateHeaderStats() {
@@ -1392,6 +1416,110 @@ async function confirmImport() {
     showToast(`${total} asset importati! (${updated} aggiornati, ${inserted} nuovi)`);
     STATE.importData=null; STATE.view='table'; render();
   } catch(e) { showToast('Errore importazione: '+e.message,'error'); }
+}
+
+
+// ════════════════════════════════════════════════
+// USERS
+// ════════════════════════════════════════════════
+let _userForm = {nome:'',email:'',password:'',ruolo:'viewer',attivo:true};
+let _userEditId = null;
+
+function renderUsers(el) {
+  const ruoloColor = r => ({'admin':'#ef4444','editor':'#f59e0b','viewer':'#22c55e'}[r]||'#888');
+  const ruoloLabel = r => ({'admin':'Admin','editor':'Editor','viewer':'Viewer'}[r]||r);
+  const trs = STATE.users.map(u => {
+    const rc = ruoloColor(u.ruolo);
+    return `<tr>
+      <td style="font-weight:500">${esc(u.nome)}</td>
+      <td style="color:var(--text-sub);font-size:12px">${esc(u.email)}</td>
+      <td><span class="badge" style="background:${rc}22;color:${rc};border:1px solid ${rc}44">${ruoloLabel(u.ruolo)}</span></td>
+      <td><span class="badge" style="background:${u.attivo?'#22c55e22':'#ef444422'};color:${u.attivo?'#22c55e':'#ef4444'};border:1px solid ${u.attivo?'#22c55e44':'#ef444444'}">${u.attivo?'Attivo':'Disattivo'}</span></td>
+      <td style="max-width:none"><div style="display:flex;gap:6px">
+        <button onclick="openEditUser(${u.id})" style="padding:5px 9px;font-size:12px;background:#0ea5e922;border:1px solid #0ea5e944;border-radius:6px;cursor:pointer;color:#0ea5e9">✏️</button>
+        <button onclick="confirmDeleteUser(${u.id})" style="padding:5px 9px;font-size:12px;background:#ef444422;border:1px solid #ef444444;border-radius:6px;cursor:pointer;color:#ef4444">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="5" style="padding:48px 0;text-align:center;color:var(--text-muted)">Nessun utente</td></tr>`;
+
+  const RUOLI = ['admin','editor','viewer'];
+  el.innerHTML = `
+    <div style="max-width:860px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <h2 style="font-weight:600;font-size:18px">👥 Gestione Utenti</h2>
+      <span style="font-size:12px;color:var(--text-sub)">${STATE.users.length} utenti</span>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px">
+      <div style="font-weight:600;font-size:14px;margin-bottom:16px">${_userEditId?'✏️ Modifica utente':'➕ Nuovo utente'}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div class="fi"><label class="fl">Nome</label><input class="fi2" value="${esc(_userForm.nome)}" oninput="_userForm.nome=this.value" placeholder="Nome Cognome"/></div>
+        <div class="fi"><label class="fl">Email</label><input class="fi2" type="email" value="${esc(_userForm.email)}" oninput="_userForm.email=this.value" placeholder="email@hilitravel.com"/></div>
+        <div class="fi"><label class="fl">Password ${_userEditId?'(lascia vuoto per non cambiare)':''}</label><input class="fi2" type="password" placeholder="••••••••" oninput="_userForm.password=this.value"/></div>
+        <div class="fi"><label class="fl">Ruolo</label>
+          <select class="fi2" onchange="_userForm.ruolo=this.value">
+            ${RUOLI.map(r=>`<option value="${r}" ${_userForm.ruolo===r?'selected':''}>${ruoloLabel(r)}</option>`).join('')}
+          </select>
+        </div>
+        ${_userEditId?`<div class="fi"><label class="fl">Stato</label>
+          <select class="fi2" onchange="_userForm.attivo=this.value==='1'">
+            <option value="1" ${_userForm.attivo?'selected':''}>Attivo</option>
+            <option value="0" ${!_userForm.attivo?'selected':''}>Disattivo</option>
+          </select></div>`:''}
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="_userEditId=null;_userForm={nome:'',email:'',password:'',ruolo:'viewer',attivo:true};render()">Annulla</button>
+        <button class="btn btn-primary" onclick="saveUser()">💾 ${_userEditId?'Salva':'Aggiungi'}</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th>Azioni</th></tr></thead>
+          <tbody>${trs}</tbody>
+        </table>
+      </div>
+      <div class="tfoot">${STATE.users.length} utenti registrati</div>
+    </div>
+    </div>`;
+}
+
+function openEditUser(id) {
+  const u = STATE.users.find(x=>x.id===id);
+  if (!u) return;
+  _userEditId = id;
+  _userForm = {nome:u.nome, email:u.email, password:'', ruolo:u.ruolo, attivo:!!u.attivo};
+  render();
+}
+
+async function saveUser() {
+  if (!_userForm.nome||!_userForm.email) { showToast('Nome ed email obbligatori','error'); return; }
+  if (!_userEditId && !_userForm.password) { showToast('Password obbligatoria','error'); return; }
+  try {
+    if (_userEditId) {
+      const data = await PUT('/api/users/'+_userEditId, _userForm);
+      STATE.users = STATE.users.map(u=>u.id===_userEditId?data:u);
+      showToast('Utente aggiornato!');
+    } else {
+      const data = await POST('/api/users', _userForm);
+      STATE.users.push(data);
+      showToast('Utente aggiunto!');
+    }
+    _userEditId=null; _userForm={nome:'',email:'',password:'',ruolo:'viewer',attivo:true};
+    render();
+  } catch(e) { showToast('Errore: '+e.message,'error'); }
+}
+
+function confirmDeleteUser(id) {
+  document.getElementById('modal-delete-user-confirm').onclick = async () => {
+    closeModal('modal-delete-user');
+    try {
+      await DELETE('/api/users/'+id);
+      STATE.users = STATE.users.filter(u=>u.id!==id);
+      showToast('Utente eliminato','info');
+      render();
+    } catch(e) { showToast('Errore: '+e.message,'error'); }
+  };
+  openModal('modal-delete-user');
 }
 
 // ════════════════════════════════════════════════
