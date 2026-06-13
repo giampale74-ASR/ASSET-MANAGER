@@ -16,12 +16,13 @@ html,body{height:100%}
 ::-webkit-scrollbar-thumb{background:var(--scroll-th);border-radius:3px}
 /* ── theme vars ── */
 [data-theme="black"]{
-  --bg:#1a1c26;--surface:#23263a;--surface2:#1e2133;
-  --border:#3a4060;--border2:#5a6490;
+  --bg:#0f1117;--surface:#1a1d2e;--surface2:#212438;
+  --border:#2a2f45;--border2:#3d4468;
   --text:#eef1fa;--text-sub:#a8b4d0;--text-muted:#6a7899;
-  --hover:#2a2f46;--input-bg:#1e2133;--select-bg:#23263a;
-  --link:#7eb8ff;--tab-on:#2a2f46;--accent:#5b7cfa;
-  --scroll-tr:#23263a;--scroll-th:#5a6490;
+  --hover:#252840;--input-bg:#141622;--select-bg:#1a1d2e;
+  --link:#7eb8ff;--tab-on:#252840;--accent:#5b7cfa;
+  --scroll-tr:#1a1d2e;--scroll-th:#3d4468;
+  --row-alt:#212438;
 }
 [data-theme="light"]{
   --bg:#1e2a3f;--surface:#263350;--surface2:#1e2a3f;
@@ -38,6 +39,7 @@ html,body{height:100%}
   --hover:#edf0f7;--input-bg:#ffffff;--select-bg:#ffffff;
   --link:#2563eb;--tab-on:#e8ecf8;--accent:#2563eb;
   --scroll-tr:#f0f2f7;--scroll-th:#c5ccd8;
+  --row-alt:#f8f9fc;
 }
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);transition:background .2s,color .2s;min-height:100vh;font-size:13px}
 input,select,textarea{outline:none;transition:border .15s,background .2s,color .2s;font-family:inherit}
@@ -61,7 +63,7 @@ textarea.fi2{resize:vertical}
 /* ── layout ── */
 #app{display:flex;flex-direction:column;min-height:100vh}
 #header{display:flex;align-items:center;gap:12px;padding:8px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;position:sticky;top:0;z-index:100}
-#content{padding:16px 24px 48px;flex:1}
+#content{padding:16px 24px 48px;flex:1;max-width:1400px;margin:0 auto;width:100%}
 /* ── nav tabs ── */
 .ntab{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:13px;color:var(--text-sub);border:none;background:transparent;font-family:'JetBrains Mono',monospace;white-space:nowrap;transition:all .15s}
 .ntab:hover{color:var(--text);background:var(--tab-on)}
@@ -74,7 +76,7 @@ th:hover{color:var(--link)}
 thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
 tbody tr{border-bottom:1px solid var(--border2)}
 tbody tr:hover{background:var(--hover)}
-tbody tr:nth-child(even){background:var(--surface2)}
+tbody tr:nth-child(even){background:var(--row-alt,var(--surface2))}
 tbody tr:nth-child(even):hover{background:var(--hover)}
 td{padding:7px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;font-size:12px}
 .tfoot{padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;align-items:center}
