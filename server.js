@@ -159,7 +159,8 @@ app.post('/api/login', async (req, res) => {
       if (match) {
         // Store user info in a signed cookie
         const userPayload = Buffer.from(JSON.stringify({ id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo })).toString('base64');
-        res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: 'lax', maxAge: 8*60*60*1000 });
+        const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+        res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: isProduction ? 'none' : 'lax', secure: !!isProduction, maxAge: 8*60*60*1000 });
         return res.json({ ok: true, ruolo: user.ruolo, nome: user.nome });
       }
     }
