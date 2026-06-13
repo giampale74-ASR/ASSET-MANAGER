@@ -65,8 +65,10 @@ function getSessionUser(req) {
   if (req.cookies?.hili_session === SESSION_SECRET) return { ruolo: 'admin', nome: ADMIN_USER };
   // passport session (Google)
   if (req.isAuthenticated?.() && req.user) return req.user;
-  // session-based (email+password login)
-  if (req.session?.user) return req.session.user;
+  // cookie-based user login
+  if (req.cookies?.hili_user) {
+    try { return JSON.parse(Buffer.from(req.cookies.hili_user, 'base64').toString()); } catch {}
+  }
   return null;
 }
 
@@ -155,7 +157,9 @@ app.post('/api/login', async (req, res) => {
     if (user && user.password) {
       const match = await bcrypt.compare(password, user.password);
       if (match) {
-        req.session.user = { id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo };
+        // Store user info in a signed cookie
+        const userPayload = Buffer.from(JSON.stringify({ id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo })).toString('base64');
+        res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: 'lax', maxAge: 8*60*60*1000 });
         return res.json({ ok: true, ruolo: user.ruolo, nome: user.nome });
       }
     }
@@ -166,6 +170,7 @@ app.post('/api/login', async (req, res) => {
 
 app.post('/api/logout', (req, res) => {
   res.clearCookie('hili_session');
+  res.clearCookie('hili_user');
   req.logout?.(() => {});
   req.session?.destroy?.(() => {});
   res.json({ ok: true });
