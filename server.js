@@ -34,7 +34,6 @@ app.use(session({
   cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 },
 }));
 app.use(passport.initialize());
-app.use(passport.session());
 
 // ── Passport Google ────────────────────────────────────────────────────
 passport.use(new GoogleStrategy({
@@ -184,10 +183,19 @@ app.get('/api/me', (req, res) => {
 });
 
 // ── Google OAuth ───────────────────────────────────────────────────────
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/?error=unauthorized' }),
-  (req, res) => res.redirect('/')
+  passport.authenticate('google', { failureRedirect: '/?error=unauthorized', session: false }),
+  (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user) return res.redirect('/?error=unauthorized');
+      const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER;
+      const userPayload = Buffer.from(JSON.stringify(user)).toString('base64');
+      res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: isProd ? 'none' : 'lax', secure: !!isProd, maxAge: 8*60*60*1000 });
+      res.redirect('/');
+    } catch(e) { next(e); }
+  }
 );
 
 // ── Users API ──────────────────────────────────────────────────────────
