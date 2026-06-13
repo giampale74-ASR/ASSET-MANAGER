@@ -474,23 +474,7 @@ function renderTable(el) {
         <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="STATE.showColManager=false;render()">✕</button>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
-        ${STATE.colOrder.map(key => {
-          const col = ALL_COLS.find(c=>c.key===key); if(!col) return '';
-          const on = STATE.visibleCols.includes(key);
-          return `<div class="col-chip ${on?'on':'off'}" draggable="true"
-            ondragstart="STATE.dragCol='${key}'"
-            ondragover="event.preventDefault();this.classList.add('drag-over')"
-            ondragleave="this.classList.remove('drag-over')"
-            ondrop="event.preventDefault();this.classList.remove('drag-over');dropCol('${key}')"
-            ondragend="STATE.dragCol=null"
-            onclick="${col.always?'':''}" 
-            data-col="${key}">
-            <span style="cursor:grab;color:var(--text-muted);font-size:13px">⠿</span>
-            <span style="width:14px;height:14px;border-radius:4px;border:2px solid ${on?'#1f6feb':'var(--border2)'};background:${on?'#1f6feb':'transparent'};display:inline-flex;align-items:center;justify-content:center;flex-shrink:0" onclick="event.stopPropagation();${col.always?'':``toggleCol('${key}')``}">${on?'<span style="color:#fff;font-size:9px;font-weight:700">✓</span>':''}</span>
-            <span style="color:${on?'var(--text)':'var(--text-muted)'};font-weight:${on?500:400}">${col.label}</span>
-            ${col.always?'<span style="font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">fisso</span>':''}
-          </div>`;
-        }).join('')}
+        ${STATE.colOrder.map(key => renderColChip(key)).join('')}
       </div>
     </div>`;
   }
@@ -1136,6 +1120,38 @@ async function saveCheckLabel(idx, label) {
 // ════════════════════════════════════════════════
 // COLUMNS
 // ════════════════════════════════════════════════
+function renderColChip(key) {
+  const col = ALL_COLS.find(c=>c.key===key);
+  if (!col) return '';
+  const on = STATE.visibleCols.includes(key);
+  const drag = STATE.dragCol===key;
+  const over = STATE.dragOver===key;
+  const checkColor = on ? '#1f6feb' : 'var(--border2)';
+  const checkBg    = on ? '#1f6feb' : 'transparent';
+  const textColor  = on ? 'var(--text)' : 'var(--text-muted)';
+  const textWeight = on ? 500 : 400;
+  const clickCb    = col.always ? '' : 'toggleCol(' + JSON.stringify(key) + ')';
+  const borderColor = (over && !drag) ? '#1f6feb' : (on ? 'var(--border)' : 'var(--border2)');
+  const bgColor     = (over && !drag) ? '#1f6feb22' : (on ? 'var(--surface2)' : 'var(--bg)');
+  const fixedBadge  = col.always ? '<span style="font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:3px;padding:0 4px">fisso</span>' : '';
+  return '<div class="col-chip" draggable="true"'
+    + ' style="background:' + bgColor + ';border:1px solid ' + borderColor + ';opacity:' + (drag?0.4:1) + '"'
+    + ' ondragstart="STATE.dragCol=' + JSON.stringify(key) + '"'
+    + ' ondragover="event.preventDefault();STATE.dragOver=' + JSON.stringify(key) + ';render()"'
+    + ' ondragleave="STATE.dragOver=null;render()"'
+    + ' ondrop="event.preventDefault();STATE.dragOver=null;dropCol(' + JSON.stringify(key) + ')"'
+    + ' ondragend="STATE.dragCol=null;STATE.dragOver=null"'
+    + (clickCb ? ' onclick="' + clickCb + '"' : '')
+    + '>'
+    + '<span style="cursor:grab;color:var(--text-muted);font-size:13px">&#10303;</span>'
+    + '<span style="width:14px;height:14px;border-radius:4px;border:2px solid ' + checkColor + ';background:' + checkBg + ';display:inline-flex;align-items:center;justify-content:center;flex-shrink:0"'
+    + (clickCb ? ' onclick="event.stopPropagation();' + clickCb + '"' : '')
+    + '>' + (on ? '<span style="color:#fff;font-size:9px;font-weight:700">&#10003;</span>' : '') + '</span>'
+    + '<span style="color:' + textColor + ';font-weight:' + textWeight + '">' + esc(col.label) + '</span>'
+    + fixedBadge
+    + '</div>';
+}
+
 function toggleCol(key) {
   if (STATE.visibleCols.includes(key)) STATE.visibleCols = STATE.visibleCols.filter(k=>k!==key);
   else STATE.visibleCols.push(key);
