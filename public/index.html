@@ -16,30 +16,31 @@ html,body{height:100%}
 ::-webkit-scrollbar-thumb{background:var(--scroll-th);border-radius:3px}
 /* ── theme vars ── */
 [data-theme="black"]{
-  --bg:#0f1117;--surface:#1a1d2e;--surface2:#212438;
-  --border:#2a2f45;--border2:#3d4468;
-  --text:#eef1fa;--text-sub:#a8b4d0;--text-muted:#6a7899;
-  --hover:#252840;--input-bg:#141622;--select-bg:#1a1d2e;
-  --link:#7eb8ff;--tab-on:#252840;--accent:#5b7cfa;
-  --scroll-tr:#1a1d2e;--scroll-th:#3d4468;
-  --row-alt:#212438;
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;
+  --border:#30363d;--border2:#484f58;
+  --text:#e6edf3;--text-sub:#8b949e;--text-muted:#6e7681;
+  --hover:#1c2128;--input-bg:#0d1117;--select-bg:#161b22;
+  --link:#58a6ff;--tab-on:#21262d;--accent:#1f6feb;
+  --scroll-tr:#161b22;--scroll-th:#30363d;
+  --row-alt:#161b22;
+}
+[data-theme="dark"]{
+  --bg:#1c1c1e;--surface:#2c2c2e;--surface2:#242426;
+  --border:#3a3a3c;--border2:#545456;
+  --text:#f2f2f7;--text-sub:#aeaeb2;--text-muted:#6d6d70;
+  --hover:#323234;--input-bg:#1c1c1e;--select-bg:#2c2c2e;
+  --link:#64b5f6;--tab-on:#323234;--accent:#4a90d9;
+  --scroll-tr:#2c2c2e;--scroll-th:#545456;
+  --row-alt:#242426;
 }
 [data-theme="light"]{
-  --bg:#1e2a3f;--surface:#263350;--surface2:#1e2a3f;
-  --border:#3f5580;--border2:#5a7ab0;
-  --text:#e4eaf8;--text-sub:#9ab0d8;--text-muted:#607098;
-  --hover:#2d3e5e;--input-bg:#1e2a3f;--select-bg:#263350;
-  --link:#89b8ff;--tab-on:#2d3e5e;--accent:#5b7cfa;
-  --scroll-tr:#263350;--scroll-th:#5a7ab0;
-}
-[data-theme="light"]{
-  --bg:#f5f7fa;--surface:#ffffff;--surface2:#f0f2f7;
-  --border:#e2e6ed;--border2:#c5ccd8;
-  --text:#1a1d23;--text-sub:#4a5568;--text-muted:#8a97a8;
-  --hover:#edf0f7;--input-bg:#ffffff;--select-bg:#ffffff;
-  --link:#2563eb;--tab-on:#e8ecf8;--accent:#2563eb;
-  --scroll-tr:#f0f2f7;--scroll-th:#c5ccd8;
-  --row-alt:#f8f9fc;
+  --bg:#f1f3f5;--surface:#ffffff;--surface2:#e9ecef;
+  --border:#dee2e6;--border2:#adb5bd;
+  --text:#212529;--text-sub:#495057;--text-muted:#868e96;
+  --hover:#e9ecef;--input-bg:#ffffff;--select-bg:#ffffff;
+  --link:#1971c2;--tab-on:#dde2e8;--accent:#1971c2;
+  --scroll-tr:#e9ecef;--scroll-th:#adb5bd;
+  --row-alt:#f8f9fa;
 }
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);transition:background .2s,color .2s;min-height:100vh;font-size:13px}
 input,select,textarea{outline:none;transition:border .15s,background .2s,color .2s;font-family:inherit}
@@ -63,7 +64,7 @@ textarea.fi2{resize:vertical}
 /* ── layout ── */
 #app{display:flex;flex-direction:column;min-height:100vh}
 #header{display:flex;align-items:center;gap:12px;padding:8px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap;position:sticky;top:0;z-index:100}
-#content{padding:16px 24px 48px;flex:1;max-width:1400px;margin:0 auto;width:100%}
+#content{padding:16px 24px 48px;flex:1;max-width:1800px;margin:0 auto;width:100%}
 /* ── nav tabs ── */
 .ntab{cursor:pointer;padding:8px 16px;border-radius:6px;font-size:13px;color:var(--text-sub);border:none;background:transparent;font-family:'JetBrains Mono',monospace;white-space:nowrap;transition:all .15s}
 .ntab:hover{color:var(--text);background:var(--tab-on)}
@@ -71,7 +72,7 @@ textarea.fi2{resize:vertical}
 /* ── table ── */
 .card{background:var(--surface);border-radius:10px;border:1px solid var(--border);overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{padding:7px 10px;text-align:left;color:var(--text-sub);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;position:relative;user-select:none;cursor:pointer}
+th{padding:9px 14px;text-align:left;color:var(--text-sub);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;position:relative;user-select:none;cursor:pointer}
 th:hover{color:var(--link)}
 thead tr{background:var(--surface2);border-bottom:1px solid var(--border)}
 tbody tr{border-bottom:1px solid var(--border2)}
@@ -530,9 +531,9 @@ function renderTable(el) {
       ${cells}
       <td style="max-width:none"><div style="display:flex;gap:4px;align-items:center">${cbs}</div></td>
       <td style="max-width:none"><div style="display:flex;gap:6px">
-        <button class="btn btn-yellow" style="padding:5px 10px;font-size:12px" onclick="openDetail(${a.id})">👁</button>
-        <button class="btn btn-accent" style="padding:5px 10px;font-size:12px" onclick="openEditAsset(${a.id})">✏️</button>
-        <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="confirmDeleteAsset(${a.id})">🗑</button>
+        <button onclick="openDetail(${a.id})" title="Dettaglio" style="padding:5px 9px;font-size:12px;background:#6366f122;border:1px solid #6366f144;border-radius:6px;cursor:pointer;color:#6366f1;transition:all .15s" onmouseover="this.style.background='#6366f133'" onmouseout="this.style.background='#6366f122'">👁</button>
+        <button onclick="openEditAsset(${a.id})" title="Modifica" style="padding:5px 9px;font-size:12px;background:#0ea5e922;border:1px solid #0ea5e944;border-radius:6px;cursor:pointer;color:#0ea5e9;transition:all .15s" onmouseover="this.style.background='#0ea5e933'" onmouseout="this.style.background='#0ea5e922'">✏️</button>
+        <button onclick="confirmDeleteAsset(${a.id})" title="Elimina" style="padding:5px 9px;font-size:12px;background:#ef444422;border:1px solid #ef444444;border-radius:6px;cursor:pointer;color:#ef4444;transition:all .15s" onmouseover="this.style.background='#ef444433'" onmouseout="this.style.background='#ef444422'">🗑</button>
       </div></td>
     </tr>`;
   }).join('') || `<tr><td colspan="${activeCols.length+2}" style="padding:48px 0;text-align:center;color:var(--text-muted)">Nessun asset trovato</td></tr>`;
@@ -559,7 +560,7 @@ function renderTable(el) {
     </div>
     <div class="card">
       <div style="overflow-x:auto">
-        <table style="table-layout:fixed;min-width:100%">
+        <table style="table-layout:auto;width:100%">
           <thead><tr>
             ${theadCols}
             <th style="min-width:240px"><div style="display:flex;gap:4px;align-items:center">${checkHeads}</div></th>
@@ -580,7 +581,7 @@ function renderCell(a, key) {
   const w = STATE.colWidths[key] ? `max-width:${STATE.colWidths[key]}px` : 'max-width:200px';
   switch(key) {
     case 'nominativo':
-      return `<td style="${w}"><div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.nominativo)}</div><div style="font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;margin-top:1px">${esc(a.email||'')}</div></td>`;
+      return `<td style="${w};cursor:pointer" onclick="openDetail(${a.id})"><div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--link)">${esc(a.nominativo)}</div><div style="font-size:10px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;margin-top:1px">${esc(a.email||'')}</div></td>`;
     case 'email':
       return `<td style="${w};color:var(--text-sub);font-size:12px">${esc(a.email||'—')}</td>`;
     case 'reparto':
@@ -644,11 +645,11 @@ function renderForm(el) {
     : `<div style="background:var(--surface2);border:1px dashed var(--border2);border-radius:8px;padding:18px;text-align:center;color:var(--text-muted);font-size:13px">Nessun PC assegnato — vai in <b style="color:var(--text-sub)">🖥 Hardware</b></div>`;
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;max-width:900px;margin-left:auto;margin-right:auto">
       <button class="btn btn-ghost" style="padding:6px 12px" onclick="STATE.view=STATE.prevView;render()">← Indietro</button>
       <h2 style="font-weight:600;font-size:18px">${STATE.editId?'Modifica Asset':'Nuovo Asset'}</h2>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:900px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:900px;margin:0 auto">
       <div style="margin-bottom:28px">
         <div class="sep">👤 Dati Dipendente</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -742,6 +743,7 @@ function renderDetail(el) {
   const sc = statoColor(a.stato);
   const assignedHw = STATE.hardware.filter(h=>h.assegnatoA&&h.assegnatoA.toLowerCase()===a.nominativo.toLowerCase());
   const ah = STATE.history.filter(h=>h.asset_id===a.id);
+  const maxW = 'max-width:860px;margin:0 auto';
 
   const hwCards = assignedHw.map(h=>`
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px">
@@ -762,6 +764,7 @@ function renderDetail(el) {
   }).join('');
 
   el.innerHTML = `
+    <div style="max-width:860px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
       <button class="btn btn-ghost" style="padding:6px 12px" onclick="STATE.view='table';render()">← Indietro</button>
       <h2 style="font-weight:600;font-size:18px">${esc(a.nominativo)}</h2>
@@ -968,7 +971,7 @@ function renderHwForm(el) {
       <button class="btn btn-ghost" style="padding:6px 12px" onclick="STATE.hwEditId=null;STATE._hwSubView='table';HWFORM=emptyHwForm();render()">← Indietro</button>
       <h2 style="font-weight:600;font-size:18px">${STATE.hwEditId?'Modifica Hardware':'Nuovo Hardware'}</h2>
     </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:700px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:860px;margin:0 auto;width:100%">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
         <div class="fi"><label class="fl">Tipo *</label>
           <select class="fi2" onchange="HWFORM.tipo=this.value">
