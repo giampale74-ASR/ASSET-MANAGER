@@ -1,6 +1,9 @@
 const express      = require('express');
 const path         = require('path');
 const cookieParser = require('cookie-parser');
+const session      = require('express-session');
+const passport     = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { createClient } = require('@libsql/client');
 
 const app  = express();
@@ -12,20 +15,57 @@ const db = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// ── Auth ───────────────────────────────────────────────────────────────
-const ADMIN_USER     = process.env.ADMIN_USER     || 'HiliAdmin';
-const ADMIN_PASS     = process.env.ADMIN_PASS     || 'Asset2026';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'hili-asset-2026-secret';
+// ── Auth config ────────────────────────────────────────────────────────
+const ADMIN_USER        = process.env.ADMIN_USER        || 'HiliAdmin';
+const ADMIN_PASS        = process.env.ADMIN_PASS        || 'Asset2026';
+const SESSION_SECRET    = process.env.SESSION_SECRET    || 'hili-asset-2026-secret';
+const GOOGLE_CLIENT_ID  = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CALLBACK_URL  = process.env.GOOGLE_CALLBACK_URL || 'https://asset.hilitravel.com/auth/google/callback';
+const ALLOWED_EMAIL     = process.env.ALLOWED_EMAIL     || 'agiampa@hilitravel.com';
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 },
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ── Passport Google ────────────────────────────────────────────────────
+passport.use(new GoogleStrategy({
+  clientID:     GOOGLE_CLIENT_ID,
+  clientSecret: GOOGLE_CLIENT_SECRET,
+  callbackURL:  GOOGLE_CALLBACK_URL,
+}, (accessToken, refreshToken, profile, done) => {
+  const email = profile.emails?.[0]?.value?.toLowerCase();
+  if (email === ALLOWED_EMAIL.toLowerCase()) {
+    return done(null, { id: profile.id, email, name: profile.displayName });
+  }
+  return done(null, false, { message: 'Email non autorizzata' });
+}));
+
+passport.serializeUser((user, done)   => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// ── Auth middleware ────────────────────────────────────────────────────
+function isAuth(req) {
+  // cookie-based (username/password)
+  if (req.cookies?.hili_session === SESSION_SECRET) return true;
+  // passport session (Google)
+  if (req.isAuthenticated && req.isAuthenticated()) return true;
+  return false;
+}
 
 function authMiddleware(req, res, next) {
   if (req.path === '/api/login')  return next();
   if (req.path === '/api/logout') return next();
+  if (req.path.startsWith('/auth/')) return next();
   if (req.path.startsWith('/api/')) {
-    const token = req.cookies?.hili_session;
-    if (token !== SESSION_SECRET) return res.status(401).json({ error: 'Non autenticato' });
+    if (!isAuth(req)) return res.status(401).json({ error: 'Non autenticato' });
   }
   next();
 }
@@ -64,7 +104,6 @@ async function initDB() {
   `);
 }
 
-// helper
 const rows = (rs) => rs.rows;
 const one  = (rs) => rs.rows[0] ?? null;
 
@@ -83,14 +122,28 @@ app.post('/api/login', (req, res) => {
 
 app.post('/api/logout', (req, res) => {
   res.clearCookie('hili_session');
+  req.logout?.(() => {});
+  req.session?.destroy?.(() => {});
   res.json({ ok: true });
 });
 
 app.get('/api/me', (req, res) => {
-  const token = req.cookies?.hili_session;
-  if (token === SESSION_SECRET) return res.json({ ok: true, user: ADMIN_USER });
+  if (isAuth(req)) {
+    const user = req.user?.email || ADMIN_USER;
+    return res.json({ ok: true, user });
+  }
   res.status(401).json({ error: 'Non autenticato' });
 });
+
+// ── Google OAuth routes ────────────────────────────────────────────────
+app.get('/auth/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] })
+);
+
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/?error=unauthorized' }),
+  (req, res) => { res.redirect('/'); }
+);
 
 // ── Assets ─────────────────────────────────────────────────────────────
 app.get('/api/assets', async (req, res) => {
@@ -109,8 +162,7 @@ app.post('/api/assets', async (req, res) => {
              b.dataAcquisto||null,b.dataConsegna||null,b.sim||null,b.numeroCellulare||null,
              b.accountMicrosoft||null,b.note||null,b.stato||'Attivo'],
     });
-    const row = one(await db.execute({ sql: 'SELECT * FROM assets WHERE id=?', args: [rs.lastInsertRowid] }));
-    res.json(row);
+    res.json(one(await db.execute({ sql: 'SELECT * FROM assets WHERE id=?', args: [rs.lastInsertRowid] })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
