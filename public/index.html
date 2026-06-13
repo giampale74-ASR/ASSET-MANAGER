@@ -120,7 +120,7 @@ td{padding:11px 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;m
 <div id="login-screen" style="display:none">
   <div class="login-box">
     <div style="text-align:center;margin-bottom:28px">
-      <img id="login-logo" src="" alt="Hili" style="height:52px;object-fit:contain;margin-bottom:12px;display:block;margin-inline:auto"/>
+      <img id="login-logo" src="" alt="Hili" style="height:72px;object-fit:contain;margin-bottom:12px;display:block;margin-inline:auto"/>
       <div style="font-size:20px;font-weight:700;color:var(--text)">Asset Manager</div>
       <div style="font-size:13px;color:var(--text-muted);margin-top:4px">Accedi per continuare</div>
     </div>
@@ -192,7 +192,7 @@ td{padding:11px 14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;m
 <!-- MAIN APP -->
 <div id="app" style="display:none">
   <div id="header">
-    <img id="header-logo" src="" alt="Hili" style="height:44px;object-fit:contain"/>
+    <img id="header-logo" src="" alt="Hili" style="height:58px;object-fit:contain"/>
     <div style="display:flex;gap:2px;margin-left:16px">
       <button class="ntab on" data-view="table"   onclick="switchView('table')">📦 Asset</button>
       <button class="ntab"     data-view="hardware" onclick="switchView('hardware')">🖥 Hardware</button>
@@ -344,12 +344,21 @@ async function doLogin() {
   const u = document.getElementById('lu').value;
   const p = document.getElementById('lp').value;
   const err = document.getElementById('login-err');
+  if (!u || !p) {
+    err.textContent = 'Inserisci username e password';
+    err.style.display = 'block';
+    return;
+  }
   try {
     const res = await POST('/api/login', {username:u, password:p});
     if (res?.ok) { err.style.display='none'; showApp(); await loadAll(); }
+    else {
+      err.textContent = 'Credenziali non valide';
+      err.style.display = 'block';
+    }
   } catch(e) {
-    err.textContent = e.message || 'Credenziali non valide';
-    err.style.display='block';
+    err.textContent = 'Username o password errati';
+    err.style.display = 'block';
   }
 }
 async function doLogout() {

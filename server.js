@@ -74,34 +74,37 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── DB init ────────────────────────────────────────────────────────────
 async function initDB() {
-  await db.executeMultiple(`
-    CREATE TABLE IF NOT EXISTS assets (
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nominativo TEXT NOT NULL, email TEXT, reparto TEXT,
       serialePC TEXT, modelloPC TEXT, dataAcquisto TEXT, dataConsegna TEXT,
       sim TEXT, numeroCellulare TEXT, accountMicrosoft TEXT, note TEXT,
       stato TEXT DEFAULT 'Attivo'
-    );
-    CREATE TABLE IF NOT EXISTS hardware (
+    )`,
+    `CREATE TABLE IF NOT EXISTS hardware (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tipo TEXT, modello TEXT, seriale TEXT, stato TEXT DEFAULT 'In uso',
       assegnatoA TEXT, dataAcquisto TEXT, dataConsegna TEXT, note TEXT
-    );
-    CREATE TABLE IF NOT EXISTS history (
+    )`,
+    `CREATE TABLE IF NOT EXISTS history (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ts TEXT, action TEXT, asset_id INTEGER,
       asset_serial TEXT, asset_nome TEXT, changes TEXT
-    );
-    CREATE TABLE IF NOT EXISTS reparti (
+    )`,
+    `CREATE TABLE IF NOT EXISTS reparti (
       id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT UNIQUE
-    );
-    CREATE TABLE IF NOT EXISTS checks (
+    )`,
+    `CREATE TABLE IF NOT EXISTS checks (
       key TEXT PRIMARY KEY, value INTEGER DEFAULT 0
-    );
-    CREATE TABLE IF NOT EXISTS check_labels (
+    )`,
+    `CREATE TABLE IF NOT EXISTS check_labels (
       idx INTEGER PRIMARY KEY, label TEXT
-    );
-  `);
+    )`,
+  ];
+  for (const sql of tables) {
+    await db.execute(sql);
+  }
 }
 
 const rows = (rs) => rs.rows;
