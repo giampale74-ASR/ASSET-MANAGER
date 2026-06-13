@@ -33,6 +33,17 @@ app.use(session({
   saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 },
 }));
+// Mock session for passport compatibility
+app.use((req, res, next) => {
+  if (!req.session) {
+    req.session = {
+      regenerate: (cb) => cb(null),
+      save: (cb) => cb(null),
+      destroy: (cb) => cb(null),
+    };
+  }
+  next();
+});
 app.use(passport.initialize());
 
 // ── Passport Google ────────────────────────────────────────────────────
