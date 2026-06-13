@@ -556,9 +556,9 @@ function renderTable(el) {
       ${cells}
       <td style="max-width:none"><div style="display:flex;gap:4px;align-items:center">${cbs}</div></td>
       <td style="max-width:none"><div style="display:flex;gap:6px">
-        <button class="btn btn-yellow" style="padding:5px 10px;font-size:12px" onclick="openDetail(${a.id})">👁</button>
-        <button class="btn btn-accent" style="padding:5px 10px;font-size:12px" onclick="openEditAsset(${a.id})">✏️</button>
-        <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="confirmDeleteAsset(${a.id})">🗑</button>
+        <button onclick="openDetail(${a.id})" title="Dettaglio" style="padding:5px 9px;font-size:12px;background:#6366f122;border:1px solid #6366f144;border-radius:6px;cursor:pointer;color:#6366f1">👁</button>
+        <button onclick="openEditAsset(${a.id})" title="Modifica" style="padding:5px 9px;font-size:12px;background:#0ea5e922;border:1px solid #0ea5e944;border-radius:6px;cursor:pointer;color:#0ea5e9">✏️</button>
+        <button onclick="confirmDeleteAsset(${a.id})" title="Elimina" style="padding:5px 9px;font-size:12px;background:#ef444422;border:1px solid #ef444444;border-radius:6px;cursor:pointer;color:#ef4444">🗑</button>
       </div></td>
     </tr>`;
   }).join('') || `<tr><td colspan="${activeCols.length+2}" style="padding:48px 0;text-align:center;color:var(--text-muted)">Nessun asset trovato</td></tr>`;
@@ -938,8 +938,8 @@ function renderHwTable(el) {
       <td style="font-size:12px;color:var(--text-sub)">${h.dataConsegna?new Date(h.dataConsegna).toLocaleDateString('it-IT'):'—'}</td>
       <td style="max-width:160px;font-size:12px;color:var(--text-muted)">${esc(h.note||'—')}</td>
       <td style="max-width:none"><div style="display:flex;gap:6px">
-        <button class="btn btn-accent" style="padding:5px 10px;font-size:12px" onclick="openEditHw(${h.id})">✏️</button>
-        <button class="btn btn-danger" style="padding:5px 10px;font-size:12px" onclick="confirmDeleteHw(${h.id})">🗑</button>
+            <button onclick="openEditHw(${h.id})" title="Modifica" style="padding:5px 9px;font-size:12px;background:#0ea5e922;border:1px solid #0ea5e944;border-radius:6px;cursor:pointer;color:#0ea5e9">✏️</button>
+            <button onclick="confirmDeleteHw(${h.id})" title="Elimina" style="padding:5px 9px;font-size:12px;background:#ef444422;border:1px solid #ef444444;border-radius:6px;cursor:pointer;color:#ef4444">🗑</button>
       </div></td>
     </tr>`;
   }).join('') || `<tr><td colspan="9" style="padding:48px 0;text-align:center;color:var(--text-muted)">Nessun hardware trovato</td></tr>`;
