@@ -1,22 +1,17 @@
 const express      = require('express');
 const path         = require('path');
 const cookieParser = require('cookie-parser');
-const session      = require('express-session');
-const passport     = require('passport');
 const bcrypt       = require('bcryptjs');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { createClient } = require('@libsql/client');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
 
-// ── Turso ──────────────────────────────────────────────────────────────
 const db = createClient({
   url:       process.env.TURSO_URL,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
-// ── Auth config ────────────────────────────────────────────────────────
 const ADMIN_USER           = process.env.ADMIN_USER        || 'HiliAdmin';
 const ADMIN_PASS           = process.env.ADMIN_PASS        || 'Asset2026';
 const SESSION_SECRET       = process.env.SESSION_SECRET    || 'hili-asset-2026-secret';
@@ -24,64 +19,31 @@ const GOOGLE_CLIENT_ID     = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_CALLBACK_URL  = process.env.GOOGLE_CALLBACK_URL || 'https://asset.hilitravel.com/auth/google/callback';
 const ALLOWED_EMAIL        = process.env.ALLOWED_EMAIL     || 'agiampa@hilitravel.com';
+const isProd               = process.env.RENDER || process.env.NODE_ENV === 'production';
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 },
-}));
-// Mock session for passport compatibility
-app.use((req, res, next) => {
-  if (!req.session) {
-    req.session = {
-      regenerate: (cb) => cb(null),
-      save: (cb) => cb(null),
-      destroy: (cb) => cb(null),
-    };
-  }
-  next();
-});
-app.use(passport.initialize());
 
-// ── Passport Google ────────────────────────────────────────────────────
-passport.use(new GoogleStrategy({
-  clientID:     GOOGLE_CLIENT_ID,
-  clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL:  GOOGLE_CALLBACK_URL,
-}, async (accessToken, refreshToken, profile, done) => {
-  const email = profile.emails?.[0]?.value?.toLowerCase();
-  // Check if email is in users table or is the allowed email
-  try {
-    const rs = await db.execute({ sql: 'SELECT * FROM users WHERE email=? AND attivo=1', args: [email] });
-    const user = rs.rows[0];
-    if (user) return done(null, { id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo });
-    if (email === ALLOWED_EMAIL.toLowerCase()) return done(null, { email, nome: 'Admin', ruolo: 'admin' });
-    return done(null, false, { message: 'Email non autorizzata' });
-  } catch {
-    if (email === ALLOWED_EMAIL.toLowerCase()) return done(null, { email, nome: 'Admin', ruolo: 'admin' });
-    return done(null, false);
-  }
-}));
+// ── Cookie helpers ─────────────────────────────────────────────────────
+function setUserCookie(res, user) {
+  const payload = Buffer.from(JSON.stringify(user)).toString('base64');
+  res.cookie('hili_user', payload, {
+    httpOnly: true,
+    sameSite: isProd ? 'none' : 'lax',
+    secure:   !!isProd,
+    maxAge:   8 * 60 * 60 * 1000,
+  });
+}
 
-passport.serializeUser((user, done)   => done(null, user));
-passport.deserializeUser((user, done) => done(null, user));
-
-// ── Auth helpers ───────────────────────────────────────────────────────
 function getSessionUser(req) {
-  // cookie-based (HiliAdmin)
   if (req.cookies?.hili_session === SESSION_SECRET) return { ruolo: 'admin', nome: ADMIN_USER };
-  // passport session (Google)
-  if (req.isAuthenticated?.() && req.user) return req.user;
-  // cookie-based user login
   if (req.cookies?.hili_user) {
     try { return JSON.parse(Buffer.from(req.cookies.hili_user, 'base64').toString()); } catch {}
   }
   return null;
 }
 
+// ── Auth middleware ────────────────────────────────────────────────────
 function authMiddleware(req, res, next) {
   if (req.path === '/api/login')  return next();
   if (req.path === '/api/logout') return next();
@@ -98,7 +60,6 @@ function requireAdmin(req, res, next) {
   if (req.sessionUser?.ruolo !== 'admin') return res.status(403).json({ error: 'Non autorizzato' });
   next();
 }
-
 function requireEditor(req, res, next) {
   const r = req.sessionUser?.ruolo;
   if (r !== 'admin' && r !== 'editor') return res.status(403).json({ error: 'Non autorizzato' });
@@ -114,8 +75,7 @@ async function initDB() {
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT NOT NULL, email TEXT UNIQUE NOT NULL,
-      password TEXT, ruolo TEXT DEFAULT 'viewer',
-      attivo INTEGER DEFAULT 1
+      password TEXT, ruolo TEXT DEFAULT 'viewer', attivo INTEGER DEFAULT 1
     )`,
     `CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,27 +114,27 @@ const one  = (rs) => rs.rows[0] ?? null;
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
 
-  // HiliAdmin fallback
+  // HiliAdmin
   if (username === ADMIN_USER && password === ADMIN_PASS) {
-    res.cookie('hili_session', SESSION_SECRET, { httpOnly: true, sameSite: 'lax', maxAge: 8*60*60*1000 });
+    res.cookie('hili_session', SESSION_SECRET, {
+      httpOnly: true, sameSite: isProd ? 'none' : 'lax', secure: !!isProd,
+      maxAge: 8*60*60*1000,
+    });
     return res.json({ ok: true, ruolo: 'admin', nome: ADMIN_USER });
   }
 
-  // User table login (by email)
+  // User table
   try {
-    const rs = await db.execute({ sql: 'SELECT * FROM users WHERE email=? AND attivo=1', args: [username] });
+    const rs = await db.execute({ sql: 'SELECT * FROM users WHERE email=? AND attivo=1', args: [username.toLowerCase()] });
     const user = rs.rows[0];
     if (user && user.password) {
       const match = await bcrypt.compare(password, user.password);
       if (match) {
-        // Store user info in a signed cookie
-        const userPayload = Buffer.from(JSON.stringify({ id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo })).toString('base64');
-        const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
-        res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: isProduction ? 'none' : 'lax', secure: !!isProduction, maxAge: 8*60*60*1000 });
+        setUserCookie(res, { id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo });
         return res.json({ ok: true, ruolo: user.ruolo, nome: user.nome });
       }
     }
-  } catch(e) { console.error(e); }
+  } catch(e) { console.error('Login error:', e.message); }
 
   res.status(401).json({ error: 'Credenziali non valide' });
 });
@@ -182,51 +142,88 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   res.clearCookie('hili_session');
   res.clearCookie('hili_user');
-  req.logout?.(() => {});
-  req.session?.destroy?.(() => {});
   res.json({ ok: true });
 });
 
 app.get('/api/me', (req, res) => {
-  const u = getSessionUser(req) || req.session?.user;
+  const u = getSessionUser(req);
   if (u) return res.json({ ok: true, user: u.nome || u.email, ruolo: u.ruolo });
   res.status(401).json({ error: 'Non autenticato' });
 });
 
-// ── Google OAuth ───────────────────────────────────────────────────────
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/?error=unauthorized', session: false }),
-  (req, res, next) => {
+// ── Google OAuth (manual, no passport) ────────────────────────────────
+app.get('/auth/google', (req, res) => {
+  const params = new URLSearchParams({
+    client_id:     GOOGLE_CLIENT_ID,
+    redirect_uri:  GOOGLE_CALLBACK_URL,
+    response_type: 'code',
+    scope:         'openid email profile',
+    access_type:   'online',
+  });
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.redirect('/?error=unauthorized');
+  try {
+    // Exchange code for token
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id:     GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri:  GOOGLE_CALLBACK_URL,
+        grant_type:    'authorization_code',
+      }),
+    });
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) return res.redirect('/?error=unauthorized');
+
+    // Get user info
+    const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const userInfo = await userRes.json();
+    const email = userInfo.email?.toLowerCase();
+
+    // Check if authorized
+    let user = null;
     try {
-      const user = req.user;
-      if (!user) return res.redirect('/?error=unauthorized');
-      const isProd = process.env.NODE_ENV === 'production' || process.env.RENDER;
-      const userPayload = Buffer.from(JSON.stringify(user)).toString('base64');
-      res.cookie('hili_user', userPayload, { httpOnly: true, sameSite: isProd ? 'none' : 'lax', secure: !!isProd, maxAge: 8*60*60*1000 });
-      res.redirect('/');
-    } catch(e) { next(e); }
+      const rs = await db.execute({ sql: 'SELECT * FROM users WHERE email=? AND attivo=1', args: [email] });
+      user = rs.rows[0];
+    } catch {}
+
+    if (user) {
+      setUserCookie(res, { id: user.id, email: user.email, nome: user.nome, ruolo: user.ruolo });
+      return res.redirect('/');
+    }
+    if (email === ALLOWED_EMAIL.toLowerCase()) {
+      setUserCookie(res, { email, nome: userInfo.name || email, ruolo: 'admin' });
+      return res.redirect('/');
+    }
+    return res.redirect('/?error=unauthorized');
+  } catch(e) {
+    console.error('Google auth error:', e.message);
+    res.redirect('/?error=unauthorized');
   }
-);
+});
 
 // ── Users API ──────────────────────────────────────────────────────────
 app.get('/api/users', requireAdmin, async (req, res) => {
   try { res.json(rows(await db.execute('SELECT id,nome,email,ruolo,attivo FROM users ORDER BY nome'))); }
   catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.post('/api/users', requireAdmin, async (req, res) => {
   const { nome, email, password, ruolo } = req.body;
   try {
     const hash = password ? await bcrypt.hash(password, 10) : null;
-    const rs = await db.execute({
-      sql: 'INSERT INTO users (nome,email,password,ruolo,attivo) VALUES (?,?,?,?,1)',
-      args: [nome, email.toLowerCase(), hash, ruolo || 'viewer'],
-    });
+    const rs = await db.execute({ sql: 'INSERT INTO users (nome,email,password,ruolo,attivo) VALUES (?,?,?,?,1)', args: [nome, email.toLowerCase(), hash, ruolo||'viewer'] });
     res.json(one(await db.execute({ sql: 'SELECT id,nome,email,ruolo,attivo FROM users WHERE id=?', args: [rs.lastInsertRowid] })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
   const { nome, email, password, ruolo, attivo } = req.body;
   try {
@@ -239,7 +236,6 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
     res.json(one(await db.execute({ sql: 'SELECT id,nome,email,ruolo,attivo FROM users WHERE id=?', args: [req.params.id] })));
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
-
 app.delete('/api/users/:id', requireAdmin, async (req, res) => {
   try { await db.execute({ sql: 'DELETE FROM users WHERE id=?', args: [req.params.id] }); res.json({ ok: true }); }
   catch(e) { res.status(500).json({ error: e.message }); }
